@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>DROP ERP</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <!-- XLSX -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <style>
+    .card { background:#fff; border-radius:0.75rem; box-shadow:0 10px 20px rgba(0,0,0,0.06); padding:1rem; }
+    .btn { @apply bg-blue-600 text-white px-4 py-2 rounded; }
+    .btn-secondary { @apply bg-gray-700 text-white px-3 py-1 rounded; }
+    .btn-danger { @apply bg-red-600 text-white px-3 py-1 rounded; }
+    .btn-green { @apply bg-green-600 text-white px-3 py-1 rounded; }
+    .table thead th { @apply text-left text-gray-600 text-sm; }
+    .table td { @apply py-2; }
+    .tag { @apply text-xs bg-gray-100 px-2 py-0.5 rounded; }
+  </style>
+</head>
+<body class="bg-gray-100 flex min-h-screen">
+
+  <!-- Sidebar -->
+  <aside class="w-64 bg-gray-900 text-white min-h-screen p-4">
+    <h1 class="text-2xl font-bold mb-8">DROP ERP</h1>
+    <nav class="space-y-2">
+      <button onclick="mostrar('dashboard')" class="w-full text-left p-2 rounded hover:bg-gray-700">📊 Dashboard</button>
+      <button onclick="mostrar('produtos')" class="w-full text-left p-2 rounded hover:bg-gray-700">📦 Produtos</button>
+      <button onclick="mostrar('fornecedores')" class="w-full text-left p-2 rounded hover:bg-gray-700">🏭 Fornecedores</button>
+      <button onclick="mostrar('compras')" class="w-full text-left p-2 rounded hover:bg-gray-700">🛒 Compras</button>
+      <button onclick="mostrar('vendas')" class="w-full text-left p-2 rounded hover:bg-gray-700">📝 Vendas</button>
+      <button onclick="mostrar('financeiro')" class="w-full text-left p-2 rounded hover:bg-gray-700">💰 Financeiro</button>
+      <button onclick="mostrar('upload')" class="w-full text-left p-2 rounded hover:bg-gray-700">📂 Upload UPSELLER</button>
+    </nav>
+  </aside>
+
+  <!-- Conteúdo -->
+  <main class="flex-1 p-6 space-y-6">
+
+    <!-- DASHBOARD -->
+    <section id="dashboard">
+      <h2 class="text-3xl font-bold mb-6">Dashboard</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="card text-center">
+          <p class="text-gray-500">Total Produtos</p>
+          <h3 id="totalProdutos" class="text-2xl font-bold">0</h3>
+        </div>
+        <div class="card text-center">
+          <p class="text-gray-500">Vendas (7 dias)</p>
+          <h3 id="vendasSemana" class="text-2xl font-bold">0</h3>
+        </div>
+        <div class="card text-center">
+          <p class="text-gray-500">Saldo Financeiro</p>
+          <h3 id="saldoFinanceiro" class="text-2xl font-bold">R$ 0,00</h3>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+        <div class="card">
+          <h3 class="font-semibold mb-2">Estoque por Categoria</h3>
+          <canvas id="graficoProdutos"></canvas>
+        </div>
+        <div class="card">
+          <h3 class="font-semibold mb-2">Financeiro</h3>
+          <canvas id="graficoFinanceiro"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- PRODUTOS -->
+    <section id="produtos" class="hidden">
+      <h2 class="text-3xl font-bold mb-6">Gerenciar Produtos</h2>
+      <form id="formProduto" class="space-y-4 max-w-4xl card mb-6">
+        <input type="hidden" id="produtoId">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+
+          <!-- SKU -->
+          <div>
+            <label class="text-sm text-gray-600">SKU (código)</label>
+            <input id="sku" placeholder="Ex: CAMIS-ML-PT-M" class="w-full p-2 border rounded">
+          </div>
+
+          <!-- Modelo -->
+          <div>
+            <label class="text-sm text-gray-600">Modelo</label>
+            <select id="modelo" class="w-full p-2 border rounded">
+              <option value="Camiseta">Camiseta</option>
+              <option value="Moletom">Moletom</option>
+              <option value="Calça">Calça</option>
+              <option value="Calçado">Calçado</option>
+            </select>
+          </div>
+
+          <!-- Categoria -->
+          <div>
+            <label class="text-sm text-gray-600">Categoria</label>
+            <input id="categoria" placeholder="Ex: Esportiva, Casual, Social" class="w-full p-2 border rounded">
+          </div>
+
+          <!-- Cor -->
+          <div>
+            <label class="text-sm text-gray-600">Cor</label>
+            <input id="cor" placeholder="Ex: Preto, Branco" class="w-full p-2 border rounded">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
+          <div>
+            <label class="text-sm text-gray-600">Tamanho</label>
+            <input id="tamanho" placeholder="Ex: M, G, 42" class="w-full p-2 border rounded">
+          </div>
+          <div>
+            <label class="text-sm text-gray-600">Quantidade</label>
+            <input type="number" id="quantidade" placeholder="0" class="w-full p-2 border rounded" value="0">
+          </div>
+          <div>
+            <label class="text-sm text-gray-600">Preço Fornecedor</label>
+            <input type="number" step="0.01" id="precoFornecedor" placeholder="0.00" class="w-full p-2 border rounded">
+          </div>
+          <div>
+            <label class="text-sm text-gray-600">Preço Venda</label>
+            <input type="number" step="0.01" id="precoVenda" placeholder="0.00" class="w-full p-2 border rounded">
+          </div>
+        </div>
+        <div class="flex gap-2 mt-4">
+          <button type="submit" class="btn">Salvar Produto</button>
+          <button type="button" id="limparProduto" class="btn-secondary">Limpar</button>
+        </div>
+      </form>
+      <div id="tabelaProdutos" class="overflow-x-auto card"></div>
+    </section>
+
+    <!-- FORNECEDORES -->
+    <section id="fornecedores" class="hidden">
+      <h2 class="text-3xl font-bold mb-6">Fornecedores</h2>
+      <form id="formFornecedor" class="space-y-4 max-w-3xl card mb-6">
+        <input type="hidden" id="fornecedorId">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <input id="nomeFornecedor" placeholder="Nome" class="w-full p-2 border rounded">
+          <input id="cnpjFornecedor" placeholder="CNPJ" class="w-full p-2 border rounded">
+          <input id="telefoneFornecedor" placeholder="Telefone" class="w-full p-2 border rounded">
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <input id="emailFornecedor" placeholder="Email" class="w-full p-2 border rounded">
+          <input id="enderecoFornecedor" placeholder="Endereço" class="w-full p-2 border rounded">
+        </div>
+        <div class="flex gap-2 mt-4">
+          <button type="submit" class="btn">Salvar Fornecedor</button>
+          <button type="button" id="limparFornecedor" class="btn-secondary">Limpar</button>
+        </div>
+      </form>
+      <div id="tabelaFornecedores" class="overflow-x-auto card"></div>
+    </section>
+
+    <!-- COMPRAS -->
+    <section id="compras" class="hidden">
+      <h2 class="text-3xl font-bold mb-6">Registrar Compra</h2>
+      <form id="formCompra" class="space-y-4 max-w-3xl card mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <select id="compraFornecedor" class="w-full p-2 border rounded"></select>
+          <select id="compraProduto" class="w-full p-2 border rounded"></select>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <input type="number" id="compraQtd" placeholder="Quantidade" class="w-full p-2 border rounded">
+          <input type="number" step="0.01" id="compraPreco" placeholder="Preço Unitário" class="w-full p-2 border rounded">
+          <input type="date" id="compraData" class="w-full p-2 border rounded">
+        </div>
+        <button type="submit" class="btn w-full">Salvar Compra</button>
+      </form>
+      <div id="tabelaCompras" class="overflow-x-auto card"></div>
+    </section>
+
+    <!-- VENDAS -->
+    <section id="vendas" class="hidden">
+      <h2 class="text-3xl font-bold mb-6">Registrar Venda</h2>
+      <form id="formVenda" class="space-y-4 max-w-3xl card mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <select id="vendaProduto" class="w-full p-2 border rounded"></select>
+          <input type="number" id="vendaQtd" placeholder="Quantidade" class="w-full p-2 border rounded">
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <input type="number" step="0.01" id="vendaPreco" placeholder="Preço Unitário" class="w-full p-2 border rounded">
+          <input id="vendaDescricao" placeholder="Descrição (opcional)" class="w-full p-2 border rounded">
+          <input type="date" id="vendaData" class="w-full p-2 border rounded">
+        </div>
+        <button type="submit" class="btn w-full">Salvar Venda</button>
+      </form>
+      <div id="tabelaVendas" class="overflow-x-auto card"></div>
+    </section>
+
+    <!-- FINANCEIRO -->
+    <section id="financeiro" class="hidden">
+      <h2 class="text-3xl font-bold mb-6">Financeiro</h2>
+      <form id="formFinanceiro" class="space-y-4 max-w-3xl card mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <select id="tipoLancamento" class="w-full p-2 border rounded">
+            <option value="Entrada">Entrada</option>
+            <option value="Saida">Saída</option>
+          </select>
+          <input id="descricaoLancamento" placeholder="Descrição" class="w-full p-2 border rounded">
+          <input type="number" step="0.01" id="valorLancamento" placeholder="Valor" class="w-full p-2 border rounded">
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <input type="date" id="dataLancamento" class="w-full p-2 border rounded">
+        </div>
+        <button type="submit" class="btn w-full">Lançar</button>
+      </form>
+      <div id="tabelaFinanceiro" class="overflow-x-auto card"></div>
+    </section>
+
+    <!-- UPLOAD UPSELLER -->
+    <section id="upload" class="hidden">
+      <h2 class="text-3xl font-bold mb-6">Upload Planilha UPSELLER</h2>
+      <p class="text-sm text-gray-600 mb-2">Planilha deve conter ao menos as colunas <span class="tag">SKU</span> e <span class="tag">Quantidade</span>. Colunas alternativas aceitas: <span class="tag">sku</span>, <span class="tag">qtd</span>.</p>
+      <input type="file" id="fileUpload" class="mb-4">
+      <button onclick="processarPlanilha()" class="btn-green">Processar e Baixar Estoque</button>
+      <div id="logUpload" class="text-sm text-gray-700 mt-4"></div>
+    </section>
+
+  </main>
+
+  <!-- Scripts -->
+  <script>
+    // ====== CONFIG: Supabase ======
+    const SUPABASE_URL = "https://ifkounurhfzwypnkywzz.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlma291bnVyaGZ6d3lwbmt5d3p6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2MjczMDQsImV4cCI6MjA3MTIwMzMwNH0.0yHrecXrnPByyP2gFFvRI76r918Q4VQZxuHq7xz_neI";
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // ====== Helpers ======
+    const fmtBRL = v => (isNaN(v) ? "R$ 0,00" :
+      v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+    );
+
+    const byId = id => document.getElementById(id);
+
+    let chartProdutos = null;
+    let chartFinanceiro = null;
+
+    function resetChart(instance) {
+      if (instance) { instance.destroy(); }
+    }
+
+    function toast(msg) { alert(msg); }
+
+    function setLoading(el, loading=true, label="Salvando...") {
+      if (!el) return;
+      if (loading) {
+        el.dataset.oldText = el.textContent;
+        el.textContent = label;
+        el.disabled = true;
+      } else {
+        el.textContent = el.dataset.oldText || "Salvar";
+        el.disabled = false;
+      }
+    }
+
+    function option(label, value) {
+      const o = document.createElement("option");
+      o.textContent = label;
+      o.value = value;
+      return o;
+    }
+
+    function dateOrNull(inputEl) {
+      const v = inputEl?.value?.trim();
+      return v ? new Date(v).toISOString() : null;
+    }
+
+    // ====== Navegação / inicialização ======
+    function mostrar(secao) {
+      document.querySelectorAll("main section").forEach(s => s.classList.add("hidden"));
+      document.getElementById(secao).classList.remove("hidden");
+      if (secao === "dashboard") carregarDashboard();
+      if (secao === "produtos") carregarProdutos();
+      if (secao === "fornecedores") carregarFornecedores();
+      if (secao === "compras") { carregarFornecedoresSelect(); carregarProdutosSelect(); carregarCompras(); }
+      if (secao === "vendas") { carregarProdutosSelectVenda(); carregarVendas(); }
+      if (secao === "financeiro") carregarFinanceiro();
+    }
+    mostrar("dashboard");
+
+    // ====== Produtos: auto-categoria por modelo ======
+    const modeloEl = byId("modelo");
+    const categoriaEl = byId("categoria");
+    if (modeloEl && categoriaEl) {
+      modeloEl.addEventListener("change", () => {
+        switch (modeloEl.value) {
+          case "Camiseta": categoriaEl.value = "Casual"; break;
+          case "Moletom":  categoriaEl.value = "Inverno"; break;
+          case "Calça":    categoriaEl.value = "Social"; break;
+          case "Calçado":  categoriaEl.value = "Esportivo"; break;
+          default:         categoriaEl.value = "";
+        }
+      });
+    }
+
+    // =========================================
+    // DASHBOARD
+    // =========================================
+    async function carregarDashboard() {
+      try {
+        // Total produtos (soma de quantidades)
+        const { data: produtos, error: ep } = await supabase.from("produtos").select("quantidade");
+        if (ep) throw ep;
+        const total = (produtos || []).reduce((s, p) => s + (p.quantidade || 0), 0);
+        byId("totalProdutos").textContent = total;
+
+        // Vendas últimos 7 dias
+        const seteDiasAtras = new Date();
+        seteDiasAtras.setDate(seteDiasAtras.getDate() - 7);
+        const { data: vendas, error: ev } = await supabase
+          .from("vendas")
+          .select("data, quantidade")
+          .gte("data", seteDiasAtras.toISOString());
+        if (ev) throw ev;
+        const vendasSemana = (vendas || []).reduce((s, v) => s + (v.quantidade || 0), 0);
+        byId("vendasSemana").textContent = vendasSemana;
+
+        // Saldo financeiro (Entradas - Saídas)
+        const { data: fin, error: ef } = await supabase
+          .from("financeiro")
+          .select("tipo, valor");
+        if (ef) throw ef;
+
+        let entradas = 0, saidas = 0;
+        (fin || []).forEach(f => {
+          if (f.tipo === "Entrada") entradas += Number(f.valor || 0);
+          if (f.tipo === "Saida")   saidas   += Number(f.valor || 0);
+        });
+        const saldo = entradas - saidas;
+        byId("saldoFinanceiro").textContent = fmtBRL(saldo);
+
+        // Gráfico estoque por categoria
+        const { data: resEstoque, error: ee } = await supabase
+          .from("produtos")
+          .select("categoria, quantidade");
+        if (ee) throw ee;
+        const catMap = {};
+        (resEstoque || []).forEach(r => {
+          const k = r.categoria || "Sem categoria";
+          catMap[k] = (catMap[k] || 0) + (r.quantidade || 0);
+        });
+        const catLabels = Object.keys(catMap);
+        const catValores = Object.values(catMap);
+
+        resetChart(chartProdutos);
+        chartProdutos = new Chart(byId("graficoProdutos"), {
+          type: "bar",
+          data: { labels: catLabels, datasets: [{ label: "Qtd", data: catValores }] },
+          options: { responsive: true, maintainAspectRatio: false }
+        });
+
+        // Gráfico Financeiro (acumulado por tipo)
+        resetChart(chartFinanceiro);
+        chartFinanceiro = new Chart(byId("graficoFinanceiro"), {
+          type: "pie",
+          data: { labels: ["Entradas", "Saídas"], datasets: [{ data: [entradas, saidas] }] },
+          options: { responsive: true, maintainAspectRatio: false }
+        });
+
+      } catch (err) {
+        console.error(err);
+        toast("Erro ao carregar dashboard");
+      }
+    }
+
+    // =========================================
+    // PRODUTOS - CRUD
+    // =========================================
+    async function carregarProdutos() {
+      const cont = byId("tabelaProdutos");
+      cont.innerHTML = "<p class='text-sm text-gray-500'>Carregando...</p>";
+      const { data, error } = await supabase
+        .from("produtos")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) { cont.innerHTML = "<p class='text-red-600'>Erro ao listar produtos</p>"; return; }
+
+      const rows = (data || []).map(p => `
+        <tr class="border-b">
+          <td class="py-2">${p.sku || "-"}</td>
+          <td>${p.modelo || "-"}</td>
+          <td>${p.categoria || "-"}</td>
+          <td>${p.cor || "-"}</td>
+          <td>${p.tamanho || "-"}</td>
+          <td>${p.quantidade ?? 0}</td>
+          <td>${fmtBRL(Number(p.preco_fornecedor || 0))}</td>
+          <td>${fmtBRL(Number(p.preco_venda || 0))}</td>
+          <td class="flex gap-2">
+            <button class="btn-secondary" onclick='editarProduto(${JSON.stringify(p)})'>Editar</button>
+            <button class="btn-danger" onclick='excluirProduto("${p.id}")'>Excluir</button>
+          </td>
+        </tr>
+      `).join("");
+
+      cont.innerHTML = `
+        <div class="flex justify-between items-center mb-3">
+          <div class="text-sm text-gray-500">Total: ${data?.length || 0} itens</div>
+          <div><span class="tag">SKU único</span></div>
+        </div>
+        <table class="w-full table">
+          <thead>
+            <tr>
+              <th>SKU</th><th>Modelo</th><th>Categoria</th><th>Cor</th>
+              <th>Tamanho</th><th>Qtd</th><th>Preço Forn.</th><th>Preço Venda</th><th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    }
+
+    function editarProduto(p) {
+      byId("produtoId").value = p.id;
+      byId("sku").value = p.sku || "";
+      byId("modelo").value = p.modelo || "Camiseta";
+      byId("categoria").value = p.categoria || "";
+      byId("cor").value = p.cor || "";
+      byId("tamanho").value = p.tamanho || "";
+      byId("quantidade").value = p.quantidade ?? 0;
+      byId("precoFornecedor").value = p.preco_fornecedor ?? "";
+      byId("precoVenda").value = p.preco_venda ?? "";
+      mostrar("produtos");
+    }
+
+    async function excluirProduto(id) {
+      if (!confirm("Confirma excluir este produto?")) return;
+      const { error } = await supabase.from("produtos").delete().eq("id", id);
+      if (error) { toast("Erro ao excluir produto"); return; }
+      toast("Produto excluído");
+      carregarProdutos();
+    }
+
+    byId("limparProduto").addEventListener("click", () => {
+      byId("produtoId").value = "";
+      byId("formProduto").reset();
+    });
+
+    byId("formProduto").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = e.submitter || e.target.querySelector("button[type=submit]");
+      setLoading(btn, true);
+
+      const payload = {
+        sku: byId("sku").value?.trim(),
+        modelo: byId("modelo").value,
+        categoria: byId("categoria").value?.trim() || null,
+        cor: byId("cor").value?.trim() || null,
+        tamanho: byId("tamanho").value?.trim() || null,
+        quantidade: Number(byId("quantidade").value || 0),
+        preco_fornecedor: byId("precoFornecedor").value ? Number(byId("precoFornecedor").value) : null,
+        preco_venda: byId("precoVenda").value ? Number(byId("precoVenda").value) : null
+      };
+
+      if (!payload.sku) { setLoading(btn, false); return toast("SKU é obrigatório"); }
+
+      const id = byId("produtoId").value;
+      let resp;
+      if (id) {
+        resp = await supabase.from("produtos").update(payload).eq("id", id).select();
+      } else {
+        resp = await supabase.from("produtos").insert([payload]).select();
+      }
+
+      setLoading(btn, false);
+      if (resp.error) {
+        if (String(resp.error.message || "").toLowerCase().includes("unique")) {
+          return toast("SKU já existe. Use outro.");
+        }
+        console.error(resp.error);
+        return toast("Erro ao salvar produto");
+      }
+      toast("Produto salvo com sucesso");
+      byId("produtoId").value = "";
+      e.target.reset();
+      carregarProdutos();
+    });
+
+    // =========================================
+    // FORNECEDORES - CRUD
+    // =========================================
+    async function carregarFornecedores() {
+      const cont = byId("tabelaFornecedores");
+      cont.innerHTML = "<p class='text-sm text-gray-500'>Carregando...</p>";
+      const { data, error } = await supabase.from("fornecedores").select("*").order("created_at", { ascending: false });
+      if (error) { cont.innerHTML = "<p class='text-red-600'>Erro ao listar fornecedores</p>"; return; }
+
+      const rows = (data || []).map(f => `
+        <tr class="border-b">
+          <td class="py-2">${f.nome || "-"}</td>
+          <td>${f.cnpj || "-"}</td>
+          <td>${f.telefone || "-"}</td>
+          <td>${f.email || "-"}</td>
+          <td>${f.endereco || "-"}</td>
+          <td class="flex gap-2">
+            <button class="btn-secondary" onclick='editarFornecedor(${JSON.stringify(f)})'>Editar</button>
+            <button class="btn-danger" onclick='excluirFornecedor("${f.id}")'>Excluir</button>
+          </td>
+        </tr>
+      `).join("");
+
+      cont.innerHTML = `
+        <table class="w-full table">
+          <thead>
+            <tr><th>Nome</th><th>CNPJ</th><th>Telefone</th><th>Email</th><th>Endereço</th><th>Ações</th></tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    }
+
+    function editarFornecedor(f) {
+      byId("fornecedorId").value = f.id;
+      byId("nomeFornecedor").value = f.nome || "";
+      byId("cnpjFornecedor").value = f.cnpj || "";
+      byId("telefoneFornecedor").value = f.telefone || "";
+      byId("emailFornecedor").value = f.email || "";
+      byId("enderecoFornecedor").value = f.endereco || "";
+      mostrar("fornecedores");
+    }
+
+    async function excluirFornecedor(id) {
+      if (!confirm("Confirma excluir este fornecedor?")) return;
+      const { error } = await supabase.from("fornecedores").delete().eq("id", id);
+      if (error) { toast("Erro ao excluir fornecedor"); return; }
+      toast("Fornecedor excluído");
+      carregarFornecedores();
+    }
+
+    byId("limparFornecedor").addEventListener("click", () => {
+      byId("fornecedorId").value = "";
+      byId("formFornecedor").reset();
+    });
+
+    byId("formFornecedor").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const payload = {
+        nome: byId("nomeFornecedor").value?.trim(),
+        cnpj: byId("cnpjFornecedor").value?.trim() || null,
+        telefone: byId("telefoneFornecedor").value?.trim() || null,
+        email: byId("emailFornecedor").value?.trim() || null,
+        endereco: byId("enderecoFornecedor").value?.trim() || null
+      };
+      if (!payload.nome) return toast("Nome é obrigatório");
+      const id = byId("fornecedorId").value;
+      let resp;
+      if (id) resp = await supabase.from("fornecedores").update(payload).eq("id", id).select();
+      else    resp = await supabase.from("fornecedores").insert([payload]).select();
+
+      if (resp.error) { console.error(resp.error); return toast("Erro ao salvar fornecedor"); }
+      toast("Fornecedor salvo com sucesso");
+      byId("fornecedorId").value = "";
+      e.target.reset();
+      carregarFornecedores();
+      carregarFornecedoresSelect(); // refresca selects em Compras
+    });
+
+    // =========================================
+    // COMPRAS (usa registrar_compra)
+    // =========================================
+    async function carregarFornecedoresSelect() {
+      const sel = byId("compraFornecedor");
+      sel.innerHTML = "<option value=''>Selecione o fornecedor</option>";
+      const { data } = await supabase.from("fornecedores").select("id, nome").order("nome");
+      (data || []).forEach(f => sel.appendChild(option(f.nome, f.id)));
+    }
+
+    async function carregarProdutosSelect() {
+      const sel = byId("compraProduto");
+      sel.innerHTML = "<option value=''>Selecione o produto (SKU - Modelo)</option>";
+      const { data } = await supabase.from("produtos").select("id, sku, modelo").order("sku");
+      (data || []).forEach(p => sel.appendChild(option(`${p.sku} - ${p.modelo}`, p.id)));
+    }
+
+    byId("formCompra").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fId = byId("compraFornecedor").value;
+      const pId = byId("compraProduto").value;
+      const qtd = Number(byId("compraQtd").value || 0);
+      const preco = Number(byId("compraPreco").value || 0);
+      const dt = dateOrNull(byId("compraData"));
+
+      if (!fId || !pId || !qtd || !preco) return toast("Preencha fornecedor, produto, quantidade e preço");
+
+      // Chama função registrar_compra
+      let { error } = await supabase.rpc("registrar_compra", {
+        p_produto_id: pId, p_fornecedor_id: fId, p_quantidade: qtd, p_preco_unit: preco
+      });
+      if (error) { console.error(error); return toast("Erro ao registrar compra"); }
+
+      // Se usuário informou data, atualiza linha de compra criada mais recente com a data desejada
+      if (dt) {
+        const { data: ult, error: eSel } = await supabase
+          .from("compras")
+          .select("id")
+          .eq("produto_id", pId)
+          .order("data", { ascending: false })
+          .limit(1);
+        if (!eSel && ult && ult[0]) {
+          await supabase.from("compras").update({ data: dt }).eq("id", ult[0].id);
+        }
+      }
+
+      toast("Compra registrada, estoque atualizado e saída financeira lançada");
+      byId("formCompra").reset();
+      carregarCompras();
+      carregarProdutos(); // atualiza estoque na lista
+      carregarDashboard();
+    });
+
+    async function carregarCompras() {
+      const cont = byId("tabelaCompras");
+      const { data, error } = await supabase
+        .from("compras")
+        .select("id, quantidade, preco_unitario, data, fornecedores(nome), produtos(sku, modelo)")
+        .order("data", { ascending: false })
+        .limit(200);
+      if (error) { cont.innerHTML = "<p class='text-red-600'>Erro ao listar compras</p>"; return; }
+      const rows = (data || []).map(c => `
+        <tr class="border-b">
+          <td class="py-2">${c.fornecedores?.nome || "-"}</td>
+          <td>${c.produtos?.sku || "-"}</td>
+          <td>${c.produtos?.modelo || "-"}</td>
+          <td>${c.quantidade}</td>
+          <td>${fmtBRL(Number(c.preco_unitario || 0))}</td>
+          <td>${new Date(c.data).toLocaleString("pt-BR")}</td>
+        </tr>
+      `).join("");
+      cont.innerHTML = `
+        <table class="w-full table">
+          <thead><tr><th>Fornecedor</th><th>SKU</th><th>Modelo</th><th>Qtd</th><th>Preço Unit.</th><th>Data</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    }
+
+    // =========================================
+    // VENDAS (usa registrar_venda)
+    // =========================================
+    async function carregarProdutosSelectVenda() {
+      const sel = byId("vendaProduto");
+      sel.innerHTML = "<option value=''>Selecione o produto (SKU - Modelo)</option>";
+      const { data } = await supabase.from("produtos").select("id, sku, modelo, preco_venda").order("sku");
+      (data || []).forEach(p => {
+        const opt = option(`${p.sku} - ${p.modelo}`, p.id);
+        opt.dataset.preco = p.preco_venda || "";
+        sel.appendChild(opt);
+      });
+      // Ao trocar produto, preenche preço de venda padrão
+      sel.addEventListener("change", () => {
+        const selOpt = sel.options[sel.selectedIndex];
+        if (selOpt && selOpt.dataset.preco) byId("vendaPreco").value = selOpt.dataset.preco;
+      }, { once: true });
+    }
+
+    byId("formVenda").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const pId = byId("vendaProduto").value;
+      const qtd = Number(byId("vendaQtd").value || 0);
+      const preco = Number(byId("vendaPreco").value || 0);
+      const desc = byId("vendaDescricao").value?.trim() || null;
+      const dt = dateOrNull(byId("vendaData"));
+
+      if (!pId || !qtd || !preco) return toast("Preencha produto, quantidade e preço");
+
+      let { error } = await supabase.rpc("registrar_venda", {
+        p_produto_id: pId, p_quantidade: qtd, p_preco: preco, p_descricao: desc
+      });
+      if (error) {
+        console.error(error);
+        const msg = (error.message || "").toLowerCase().includes("estoque")
+          ? "Estoque insuficiente" : "Erro ao registrar venda";
+        return toast(msg);
+      }
+
+      // Ajusta data se necessário
+      if (dt) {
+        const { data: ult, error: eSel } = await supabase
+          .from("vendas")
+          .select("id")
+          .eq("produto_id", pId)
+          .order("data", { ascending: false })
+          .limit(1);
+        if (!eSel && ult && ult[0]) {
+          await supabase.from("vendas").update({ data: dt }).eq("id", ult[0].id);
+        }
+      }
+
+      toast("Venda registrada, estoque atualizado e entrada financeira lançada");
+      byId("formVenda").reset();
+      carregarVendas();
+      carregarProdutos(); // atualiza estoque na lista
+      carregarDashboard();
+    });
+
+    async function carregarVendas() {
+      const cont = byId("tabelaVendas");
+      const { data, error } = await supabase
+        .from("vendas")
+        .select("id, quantidade, preco_unitario, descricao, data, produtos(sku, modelo)")
+        .order("data", { ascending: false })
+        .limit(200);
+      if (error) { cont.innerHTML = "<p class='text-red-600'>Erro ao listar vendas</p>"; return; }
+      const rows = (data || []).map(v => `
+        <tr class="border-b">
+          <td class="py-2">${v.produtos?.sku || "-"}</td>
+          <td>${v.produtos?.modelo || "-"}</td>
+          <td>${v.quantidade}</td>
+          <td>${fmtBRL(Number(v.preco_unitario || 0))}</td>
+          <td>${v.descricao || "-"}</td>
+          <td>${new Date(v.data).toLocaleString("pt-BR")}</td>
+        </tr>
+      `).join("");
+      cont.innerHTML = `
+        <table class="w-full table">
+          <thead><tr><th>SKU</th><th>Modelo</th><th>Qtd</th><th>Preço Unit.</th><th>Descrição</th><th>Data</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    }
+
+    // =========================================
+    // FINANCEIRO (manual)
+    // =========================================
+    byId("formFinanceiro").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const tipo = byId("tipoLancamento").value;
+      const descricao = byId("descricaoLancamento").value?.trim() || null;
+      const valor = Number(byId("valorLancamento").value || 0);
+      const data = dateOrNull(byId("dataLancamento"));
+
+      if (!valor) return toast("Informe um valor");
+      const payload = { tipo, descricao, valor };
+      if (data) payload.data = data;
+
+      const { error } = await supabase.from("financeiro").insert([payload]);
+      if (error) { console.error(error); return toast("Erro ao lançar financeiro"); }
+      toast("Lançamento salvo");
+      e.target.reset();
+      carregarFinanceiro();
+      carregarDashboard();
+    });
+
+    async function carregarFinanceiro() {
+      const cont = byId("tabelaFinanceiro");
+      const { data, error } = await supabase
+        .from("financeiro")
+        .select("*")
+        .order("data", { ascending: false })
+        .limit(500);
+      if (error) { cont.innerHTML = "<p class='text-red-600'>Erro ao listar lançamentos</p>"; return; }
+      const rows = (data || []).map(l => `
+        <tr class="border-b">
+          <td class="py-2">${l.tipo}</td>
+          <td>${l.descricao || "-"}</td>
+          <td>${fmtBRL(Number(l.valor || 0))}</td>
+          <td>${new Date(l.data).toLocaleString("pt-BR")}</td>
+        </tr>
+      `).join("");
+      cont.innerHTML = `
+        <table class="w-full table">
+          <thead><tr><th>Tipo</th><th>Descrição</th><th>Valor</th><th>Data</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    }
+
+    // =========================================
+    // Upload UPSELLER (XLSX → vender & baixar estoque)
+    // Aceita colunas: SKU|sku e Quantidade|qtd
+    // Preço de venda: usa valor da planilha se houver coluna Preco|preco|valor; senão usa preco_venda cadastrado
+    // =========================================
+    async function processarPlanilha() {
+      const input = byId("fileUpload");
+      const log = byId("logUpload");
+      log.textContent = "";
+      if (!input.files || !input.files[0]) return toast("Selecione um arquivo XLSX");
+
+      const buf = await input.files[0].arrayBuffer();
+      const wb = XLSX.read(buf);
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet);
+
+      if (!rows.length) return toast("Planilha vazia");
+
+      let ok = 0, falhas = 0;
+      for (const r of rows) {
+        const sku = r.SKU || r.sku || String(r.Sku || "").trim();
+        const qtd = Number(r.Quantidade || r.qtd || r.QTD || 0);
+        const precoPlan = Number(r.Preco || r.preco || r.valor || 0);
+
+        if (!sku || !qtd) { falhas++; continue; }
+
+        // Busca produto por SKU
+        const { data: prod, error: ep } = await supabase.from("produtos").select("id, preco_venda").eq("sku", sku).limit(1);
+        if (ep || !prod || !prod[0]) { falhas++; continue; }
+
+        const pId = prod[0].id;
+        const precoUnit = precoPlan > 0 ? precoPlan : Number(prod[0].preco_venda || 0);
+        if (!precoUnit) { falhas++; continue; }
+
+        // Chama registrar_venda
+        const { error: ev } = await supabase.rpc("registrar_venda", {
+          p_produto_id: pId, p_quantidade: qtd, p_preco: precoUnit, p_descricao: "UPSELLER"
+        });
+        if (ev) { falhas++; continue; }
+        ok++;
+      }
+
+      log.innerHTML = `<div class="mt-2">
+        <div class="text-green-700">Registros processados com sucesso: ${ok}</div>
+        <div class="text-red-700">Falhas: ${falhas}</div>
+      </div>`;
+
+      carregarVendas();
+      carregarProdutos();
+      carregarDashboard();
+      toast("Processamento concluído");
+    }
+  </script>
+</body>
+</html>
