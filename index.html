@@ -1,99 +1,954 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>DROP ERP - Ultra (com diagnóstico)</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <meta charset="UTF-8" />
+  <title>SISTEMA DROP-IN ERP</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Supabase v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- XLSX -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <!-- jQuery + DataTables -->
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+
   <style>
-    body { font-family: Arial, sans-serif; margin:0; background:#f5f6f7; }
-    .sidebar { width:220px; background:#111827; color:white; height:100vh; position:fixed; top:0; left:0; padding:20px; }
-    .sidebar h2 { margin:0 0 20px; }
-    .sidebar button { display:block; width:100%; margin:5px 0; padding:10px; background:#1f2937; color:white; border:none; cursor:pointer; }
-    .content { margin-left:240px; padding:20px; }
-    .card { background:white; padding:20px; border-radius:8px; margin-bottom:20px; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
-    .status-ok { color:green; }
-    .status-err { color:red; }
+    :root { --card-bg: #fff; --muted:#6b7280; }
+    body { background:#f3f4f6; }
+    .card { background: var(--card-bg); border-radius: 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); padding: 1rem; }
+    .btn { padding: .5rem .875rem; border-radius: .5rem; font-weight: 600; }
+    .btn-primary { background:#2563eb; color:white; }
+    .btn-danger { background:#dc2626; color:white; }
+    .btn-secondary { background:#6b7280; color:white; }
+    .btn-outline { border:1px solid #d1d5db; }
+    .badge { display:inline-block; padding:.125rem .5rem; font-size:.75rem; border-radius:.5rem; background:#eef2ff; color:#3730a3; }
+    .hidden { display:none; }
+    .table-wrap { overflow:auto; }
+    /* Altura fixa para cards com gráfico -> evita “puxão” de scroll */
+    .chart-card { min-height: 320px; position: relative; }
+    .chart-card canvas { position:absolute; inset: 0; }
+    /* DataTables refinado */
+    table.dataTable thead th { background:#f9fafb; }
+    .dataTables_wrapper .dataTables_filter input { border:1px solid #d1d5db; border-radius:.5rem; padding:.375rem .5rem; }
+    .dataTables_wrapper .dataTables_length select { border:1px solid #d1d5db; border-radius:.5rem; padding:.25rem .5rem; }
   </style>
 </head>
 <body>
-  <div class="sidebar">
-    <h2>DROP ERP</h2>
-    <button onclick="mostrarSecao('dashboard')">📊 Dashboard</button>
-    <hr>
-    <div id="status">Status: ⏳ Conectando...</div>
+  <div class="flex min-h-screen">
+    <!-- Sidebar -->
+    <aside class="w-72 bg-gray-900 text-white p-5">
+      <h1 class="text-2xl font-extrabold tracking-tight mb-6">DROP ERP</h1>
+      <nav class="space-y-2">
+        <button class="w-full text-left btn btn-outline hover:bg-gray-800" onclick="mostrar('dashboard')">📊 Dashboard</button>
+        <button class="w-full text-left btn btn-outline hover:bg-gray-800" onclick="mostrar('produtos')">🧾 Produtos</button>
+        <button class="w-full text-left btn btn-outline hover:bg-gray-800" onclick="mostrar('fornecedores')">🏢 Fornecedores</button>
+        <button class="w-full text-left btn btn-outline hover:bg-gray-800" onclick="mostrar('compras')">🛒 Compras</button>
+        <button class="w-full text-left btn btn-outline hover:bg-gray-800" onclick="mostrar('vendas')">🧮 Vendas</button>
+        <button class="w-full text-left btn btn-outline hover:bg-gray-800" onclick="mostrar('financeiro')">💰 Financeiro</button>
+        <button class="w-full text-left btn btn-outline hover:bg-gray-800" onclick="mostrar('upload')">📂 Upload UPSELLER</button>
+        <button class="w-full text-left btn btn-outline hover:bg-gray-800" onclick="mostrar('uploads')">🕘 Histórico de Uploads</button>
+      </nav>
+      <div class="mt-8 text-sm text-gray-300 space-y-1">
+        <p><span class="opacity-70">Status:</span> <span id="statusConexao" class="badge">Conectando…</span></p>
+        <p id="statusMsg" class="text-xs text-gray-400"></p>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="flex-1 p-6 space-y-8">
+
+      <!-- DASHBOARD -->
+      <section id="dashboard" class="space-y-6">
+        <h2 class="text-3xl font-bold">Dashboard</h2>
+        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="card"><p class="text-gray-500">Produtos (cadastros)</p><p id="kpiProdutos" class="text-3xl font-bold">0</p></div>
+          <div class="card"><p class="text-gray-500">Estoque (itens)</p><p id="kpiEstoque" class="text-3xl font-bold">0</p></div>
+          <div class="card"><p class="text-gray-500">Vendas (7 dias)</p><p id="kpiVendasSemana" class="text-3xl font-bold">0</p></div>
+          <div class="card"><p class="text-gray-500">Saldo Financeiro</p><p id="kpiSaldo" class="text-3xl font-bold">R$ 0,00</p></div>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-6">
+          <div class="card chart-card">
+            <h3 class="font-semibold mb-2">Vendas por Dia (últimos 14)</h3>
+            <canvas id="graficoVendas" aria-label="Gráfico de vendas"></canvas>
+          </div>
+          <div class="card chart-card">
+            <h3 class="font-semibold mb-2">Importações UPSELLER (30 dias)</h3>
+            <canvas id="graficoUploads" aria-label="Gráfico de uploads"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="font-semibold mb-3">Resumo rápido das últimas importações</h3>
+          <div class="table-wrap">
+            <table id="dtDashboardUploads" class="display stripe" style="width:100%">
+              <thead>
+                <tr>
+                  <th>Arquivo</th>
+                  <th>Data Upload</th>
+                  <th>Sucessos</th>
+                  <th>Falhas</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- PRODUTOS -->
+      <section id="produtos" class="hidden space-y-6">
+        <h2 class="text-3xl font-bold">Produtos</h2>
+
+        <form id="formProduto" class="card space-y-4">
+          <input type="hidden" id="produtoId">
+          <div class="grid md:grid-cols-4 gap-3">
+            <div>
+              <label class="text-sm text-gray-600">SKU</label>
+              <input id="sku" class="w-full p-2 border rounded" placeholder="Ex: CAMIS-ML-PT-M">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Modelo</label>
+              <select id="modelo" class="w-full p-2 border rounded">
+                <option value="Camiseta">Camiseta</option>
+                <option value="Moletom">Moletom</option>
+                <option value="Calça">Calça</option>
+                <option value="Calçado">Calçado</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Categoria</label>
+              <input id="categoria" class="w-full p-2 border rounded" placeholder="Casual, Inverno, Social, Esportivo">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Nome</label>
+              <input id="nomeProduto" class="w-full p-2 border rounded" placeholder="Nome do produto">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Cor</label>
+              <input id="cor" class="w-full p-2 border rounded">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Tamanho</label>
+              <input id="tamanho" class="w-full p-2 border rounded" placeholder="P, M, G, 40, 42…">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Preço Fornecedor</label>
+              <input type="number" step="0.01" id="precoFornecedor" class="w-full p-2 border rounded">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Preço Venda</label>
+              <input type="number" step="0.01" id="precoVenda" class="w-full p-2 border rounded">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Quantidade</label>
+              <input type="number" id="quantidade" class="w-full p-2 border rounded" value="0">
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-primary" type="submit">Salvar</button>
+            <button type="button" class="btn btn-secondary" onclick="resetForm('formProduto')">Limpar</button>
+          </div>
+        </form>
+
+        <div class="card">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-semibold">Lista de Produtos</h3>
+          </div>
+          <div class="table-wrap">
+            <table id="dtProdutos" class="display stripe" style="width:100%">
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th>Nome</th>
+                  <th>Modelo/Categoria</th>
+                  <th>Cor</th>
+                  <th>Tam</th>
+                  <th>Fornecedor</th>
+                  <th>Venda</th>
+                  <th>Qtd</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- FORNECEDORES -->
+      <section id="fornecedores" class="hidden space-y-6">
+        <h2 class="text-3xl font-bold">Fornecedores</h2>
+
+        <form id="formFornecedor" class="card space-y-4">
+          <input type="hidden" id="fornecedorId">
+          <div class="grid md:grid-cols-5 gap-3">
+            <div><label class="text-sm text-gray-600">Nome</label><input id="fornecedorNome" class="w-full p-2 border rounded"></div>
+            <div><label class="text-sm text-gray-600">Telefone</label><input id="fornecedorTelefone" class="w-full p-2 border rounded"></div>
+            <div><label class="text-sm text-gray-600">Email</label><input id="fornecedorEmail" class="w-full p-2 border rounded"></div>
+            <div><label class="text-sm text-gray-600">CNPJ/CPF</label><input id="fornecedorCnpjCpf" class="w-full p-2 border rounded"></div>
+            <div><label class="text-sm text-gray-600">Observações</label><input id="fornecedorObs" class="w-full p-2 border rounded"></div>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-primary" type="submit">Salvar</button>
+            <button type="button" class="btn btn-secondary" onclick="resetForm('formFornecedor')">Limpar</button>
+          </div>
+        </form>
+
+        <div class="card">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="text-sm text-gray-500">Use a busca do DataTables para verificar se já está cadastrado.</span>
+          </div>
+          <div class="table-wrap">
+            <table id="dtFornecedores" class="display stripe" style="width:100%">
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>Telefone</th>
+                  <th>Email</th>
+                  <th>CNPJ/CPF</th>
+                  <th>Obs</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- COMPRAS -->
+      <section id="compras" class="hidden space-y-6">
+        <h2 class="text-3xl font-bold">Compras</h2>
+
+        <form id="formCompra" class="card space-y-4">
+          <input type="hidden" id="compraId">
+          <div class="grid md:grid-cols-5 gap-3">
+            <div class="md:col-span-2">
+              <label class="text-sm text-gray-600">Fornecedor</label>
+              <select id="compraFornecedor" class="w-full p-2 border rounded"></select>
+            </div>
+            <div class="md:col-span-2">
+              <label class="text-sm text-gray-600">Produto</label>
+              <select id="compraProduto" class="w-full p-2 border rounded"></select>
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Quantidade</label>
+              <input type="number" id="compraQuantidade" class="w-full p-2 border rounded" value="1">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Custo Unitário</label>
+              <input type="number" step="0.01" id="compraCusto" class="w-full p-2 border rounded" value="0">
+            </div>
+            <div class="md:col-span-2">
+              <label class="text-sm text-gray-600">Obs</label>
+              <input id="compraObs" class="w-full p-2 border rounded">
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-primary" type="submit">Lançar Compra</button>
+            <button type="button" class="btn btn-secondary" onclick="resetForm('formCompra')">Limpar</button>
+          </div>
+        </form>
+
+        <div class="card">
+          <h3 class="font-semibold mb-2">Últimas Compras</h3>
+          <div class="table-wrap">
+            <table id="dtCompras" class="display stripe" style="width:100%">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Fornecedor</th>
+                  <th>Produto (SKU)</th>
+                  <th>Qtd</th>
+                  <th>Custo</th>
+                  <th>Obs</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- VENDAS -->
+      <section id="vendas" class="hidden space-y-6">
+        <h2 class="text-3xl font-bold">Vendas</h2>
+
+        <form id="formVenda" class="card space-y-4">
+          <input type="hidden" id="vendaId">
+          <div class="grid md:grid-cols-5 gap-3">
+            <div class="md:col-span-3">
+              <label class="text-sm text-gray-600">Produto</label>
+              <select id="vendaProduto" class="w-full p-2 border rounded"></select>
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Quantidade</label>
+              <input type="number" id="vendaQuantidade" class="w-full p-2 border rounded" value="1">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Preço Unitário</label>
+              <input type="number" step="0.01" id="vendaPreco" class="w-full p-2 border rounded" value="0">
+            </div>
+            <div class="md:col-span-5">
+              <label class="text-sm text-gray-600">Descrição</label>
+              <input id="vendaDescricao" class="w-full p-2 border rounded" placeholder="Obs ou canal de venda">
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-primary" type="submit">Registrar Venda</button>
+            <button type="button" class="btn btn-secondary" onclick="resetForm('formVenda')">Limpar</button>
+          </div>
+        </form>
+
+        <div class="card">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-semibold">Vendas Recentes</h3>
+          </div>
+          <div class="table-wrap">
+            <table id="dtVendas" class="display stripe" style="width:100%">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Produto (SKU)</th>
+                  <th>Qtd</th>
+                  <th>Preço</th>
+                  <th>Descrição</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- FINANCEIRO -->
+      <section id="financeiro" class="hidden space-y-6">
+        <h2 class="text-3xl font-bold">Financeiro</h2>
+
+        <form id="formFinanceiro" class="card space-y-4">
+          <input type="hidden" id="financeiroId">
+          <div class="grid md:grid-cols-5 gap-3">
+            <div>
+              <label class="text-sm text-gray-600">Tipo</label>
+              <select id="finTipo" class="w-full p-2 border rounded">
+                <option value="Entrada">Entrada</option>
+                <option value="Saida">Saída</option>
+              </select>
+            </div>
+            <div class="md:col-span-2">
+              <label class="text-sm text-gray-600">Descrição</label>
+              <input id="finDescricao" class="w-full p-2 border rounded">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Valor</label>
+              <input type="number" step="0.01" id="finValor" class="w-full p-2 border rounded" value="0">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Data</label>
+              <input type="date" id="finData" class="w-full p-2 border rounded">
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-primary" type="submit">Lançar</button>
+            <button type="button" class="btn btn-secondary" onclick="resetForm('formFinanceiro')">Limpar</button>
+          </div>
+        </form>
+
+        <div class="card">
+          <h3 class="font-semibold mb-2">Movimentos Financeiros</h3>
+          <div class="table-wrap">
+            <table id="dtFinanceiro" class="display stripe" style="width:100%">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Tipo</th>
+                  <th>Descrição</th>
+                  <th>Valor</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- UPLOAD -->
+      <section id="upload" class="hidden space-y-6">
+        <h2 class="text-3xl font-bold">Upload – UPSELLER</h2>
+
+        <div class="card space-y-3">
+          <p class="text-gray-600">Selecione a planilha (.xlsx/.csv) exportada do UPSELLER. O sistema:</p>
+          <ul class="list-disc pl-6 text-gray-600">
+            <li>Cadastra automaticamente novos produtos (se o SKU não existir)</li>
+            <li>Registra as vendas e dá baixa no estoque</li>
+            <li>Evita processar o mesmo arquivo mais de uma vez</li>
+          </ul>
+
+          <input type="file" id="fileUpload" class="block">
+          <div class="flex items-center gap-2">
+            <button class="btn btn-primary" onclick="processarPlanilha()">Processar e Baixar Estoque</button>
+            <span id="nomeArquivoInfo" class="text-sm text-gray-500"></span>
+          </div>
+
+          <div id="resultadoUpload" class="mt-3 text-sm"></div>
+        </div>
+
+        <div class="card">
+          <h3 class="font-semibold mb-2">Erros detalhados</h3>
+          <pre id="errosDetalhados" class="p-3 bg-gray-50 rounded overflow-auto text-sm"></pre>
+        </div>
+      </section>
+
+      <!-- HISTÓRICO UPLOADS -->
+      <section id="uploads" class="hidden space-y-6">
+        <h2 class="text-3xl font-bold">Histórico de Uploads</h2>
+        <div class="card table-wrap">
+          <table id="dtUploads" class="display stripe" style="width:100%">
+            <thead>
+              <tr>
+                <th>Arquivo</th>
+                <th>Data</th>
+                <th>Sucesso</th>
+                <th>Falhas</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
   </div>
 
-  <div class="content">
-    <section id="dashboard" class="card">
-      <h2>Dashboard</h2>
-      <div id="diag"></div>
-      <canvas id="chartVendas" height="100"></canvas>
-    </section>
-  </div>
+  <script>
+    // ====== CONFIG: Supabase (SUAS CHAVES) ======
+    const SUPABASE_URL = "https://ifkounurhfzwypnkywzz.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlma291bnVyaGZ6d3lwbmt5d3p6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2MjczMDQsImV4cCI6MjA3MTIwMzMwNH0.0yHrecXrnPByyP2gFFvRI76r918Q4VQZxuHq7xz_neI";
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-<script>
-  // ===== CONFIG SUPABASE =====
-  const SUPABASE_URL = "https://ifkounurhfzwypnkywzz.supabase.co";
-  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlma291bnVyaGZ6d3lwbmt5d3p6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2MjczMDQsImV4cCI6MjA3MTIwMzMwNH0.0yHrecXrnPByyP2gFFvRI76r918Q4VQZxuHq7xz_neI";
-  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    // ====== Helpers ======
+    const DT = {}; // instâncias DataTable por id
+    const Charts = { vendas:null, uploads:null };
+    function brl(v){ return (Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
+    function fmtDate(d){ try { return new Date(d).toLocaleString('pt-BR'); } catch { return ''; } }
+    function resetForm(formId){
+      const f = document.getElementById(formId);
+      f.reset();
+      f.querySelectorAll('input[type="hidden"]').forEach(h=>h.value='');
+    }
+    function setStatus(ok,msg=''){
+      const el = document.getElementById('statusConexao');
+      const sm = document.getElementById('statusMsg');
+      if(ok){ el.textContent='Conectado'; el.style.background='#dcfce7'; el.style.color='#166534'; }
+      else { el.textContent='Falha'; el.style.background='#fee2e2'; el.style.color='#991b1b'; }
+      sm.textContent = msg || '';
+    }
+    function ensureDT(id, columns){
+      if (DT[id]) return DT[id];
+      const table = $('#'+id).DataTable({
+        deferRender:true,
+        pageLength: 10,
+        lengthMenu: [10,25,50,100],
+        columns: columns || undefined,
+        order: [],
+        language: {
+          url: "https://cdn.datatables.net/plug-ins/1.13.8/i18n/pt-BR.json"
+        }
+      });
+      DT[id] = table;
+      return table;
+    }
+    // Navegação entre telas (sem rolagem “pulando”)
+    function mostrar(id){
+      document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
+      document.getElementById(id).classList.remove('hidden');
+      // rola topo suave e impede jump
+      window.scrollTo({top:0, behavior:'instant'});
+      // Carregamentos
+      if(id==='dashboard') carregarDashboard();
+      if(id==='produtos') carregarProdutos();
+      if(id==='fornecedores') carregarFornecedores();
+      if(id==='compras'){ preencherSelectsCompra(); carregarCompras(); }
+      if(id==='vendas'){ preencherSelectsVenda(); carregarVendas(); }
+      if(id==='financeiro') carregarFinanceiro();
+      if(id==='uploads') carregarUploads();
+    }
 
-  async function diagnostico() {
-    const diagDiv = document.getElementById("diag");
-    diagDiv.innerHTML = "<p>🔎 Rodando diagnóstico...</p>";
-
-    const tabelas = ["produtos","fornecedores","compras","vendas","financeiro","uploads"];
-    let html = "<ul>";
-
-    for (const t of tabelas) {
+    // ====== INIT: testa conexão e abre dashboard ======
+    (async () => {
       try {
-        const { data, error } = await supabase.from(t).select("*").limit(1);
-        if (error) throw error;
-        html += `<li class="status-ok">✅ ${t} OK (${data.length} registros)</li>`;
-      } catch (err) {
-        html += `<li class="status-err">❌ ${t} erro: ${err.message}</li>`;
+        const { data, error } = await supabase.from('produtos').select('id').limit(1);
+        setStatus(!error, error ? error.message : `OK`);
+      } catch(e){ setStatus(false, String(e)); }
+      mostrar('dashboard');
+    })();
+
+    // ==========================
+    // DASHBOARD
+    // ==========================
+    async function carregarDashboard(){
+      try{
+        const [p, fin, v, up] = await Promise.all([
+          supabase.from('produtos').select('quantidade'),
+          supabase.from('financeiro').select('tipo,valor'),
+          supabase.from('vendas').select('data, quantidade'),
+          supabase.from('uploads').select('*').order('data_upload', {ascending:false}).limit(20)
+        ]);
+
+        const kpiProdutos = p.data?.length ?? 0;
+        const kpiEstoque = (p.data||[]).reduce((s,x)=> s+(x.quantidade||0), 0);
+        const vendas7 = (v.data||[]).filter(x => (Date.now() - new Date(x.data)) / 86400000 <= 7);
+        const kpiVendasSemana = vendas7.reduce((s,x)=> s+(x.quantidade||0), 0);
+        const saldo = (fin.data||[]).reduce((s,x)=> s + (x.tipo==='Entrada' ? +x.valor : -x.valor), 0);
+
+        document.getElementById('kpiProdutos').textContent = kpiProdutos;
+        document.getElementById('kpiEstoque').textContent = kpiEstoque;
+        document.getElementById('kpiVendasSemana').textContent = kpiVendasSemana;
+        document.getElementById('kpiSaldo').textContent = brl(saldo);
+
+        // Gráfico Vendas (últimos 14 dias)
+        const porDia = {};
+        (v.data||[]).forEach(row=>{
+          const d = new Date(row.data); d.setHours(0,0,0,0);
+          const k = d.toISOString().slice(0,10);
+          porDia[k] = (porDia[k]||0) + (row.quantidade||0);
+        });
+        const dias = [...Array(14)].map((_,i)=>{ const d=new Date(); d.setDate(d.getDate()-(13-i)); return d.toISOString().slice(0,10); });
+        const vendasSerie = dias.map(d => porDia[d]||0);
+        const ctxV = document.getElementById('graficoVendas').getContext('2d');
+        if (Charts.vendas) Charts.vendas.destroy();
+        Charts.vendas = new Chart(ctxV, {
+          type:'bar',
+          data:{ labels: dias.map(d=>d.slice(5)), datasets:[{ label:'Qtd', data: vendasSerie }] },
+          options:{ responsive:true, maintainAspectRatio:false, animation:false }
+        });
+
+        // Gráfico Uploads (últimos 30 dias)
+        const porDiaUp = {};
+        (up.data||[]).forEach(u=>{
+          const d = new Date(u.data_upload); d.setHours(0,0,0,0);
+          const k = d.toISOString().slice(0,10);
+          porDiaUp[k] = (porDiaUp[k]||0) + (u.sucesso||0);
+        });
+        const diasUp = [...Array(30)].map((_,i)=>{ const d=new Date(); d.setDate(d.getDate()-(29-i)); return d.toISOString().slice(0,10); });
+        const serieUp = diasUp.map(d => porDiaUp[d]||0);
+        const ctxU = document.getElementById('graficoUploads').getContext('2d');
+        if (Charts.uploads) Charts.uploads.destroy();
+        Charts.uploads = new Chart(ctxU, {
+          type:'line',
+          data:{ labels: diasUp.map(d=>d.slice(5)), datasets:[{ label:'Itens importados', data: serieUp }] },
+          options:{ responsive:true, maintainAspectRatio:false, animation:false }
+        });
+
+        // Tabela últimas importações (DataTable)
+        const dt = ensureDT('dtDashboardUploads', [
+          { title:'Arquivo', data:'nome_arquivo' },
+          { title:'Data Upload', data:'data_upload', render:(d)=> fmtDate(d) },
+          { title:'Sucessos', data:'sucesso' },
+          { title:'Falhas', data:'falhas' }
+        ]);
+        dt.clear().rows.add(up.data||[]).draw();
+
+      }catch(err){
+        console.error(err);
       }
     }
-    html += "</ul>";
-    diagDiv.innerHTML = html;
-  }
 
-  async function carregarDashboard() {
-    const { data, error } = await supabase.from("vendas").select("data_venda, quantidade").order("data_venda", { ascending: true }).limit(14);
-    if (error) {
-      console.error(error);
-      return;
+    // ==========================
+    // PRODUTOS
+    // ==========================
+    async function carregarProdutos(){
+      const { data, error } = await supabase.from('produtos').select('*').order('created_at',{ascending:false}).limit(1000);
+      if (error){ console.error(error); return; }
+      const dt = ensureDT('dtProdutos');
+      const rows = (data||[]).map(r=> ([
+        r.sku||'',
+        r.nome||'',
+        `${r.modelo||''} / ${r.categoria||''}`,
+        r.cor||'',
+        r.tamanho||'',
+        brl(r.preco_fornecedor),
+        brl(r.preco_venda),
+        (r.quantidade||0),
+        `<div class="flex gap-2">
+          <button class="btn btn-outline" onclick='editarProduto(${JSON.stringify(r).replaceAll("'","&apos;")})'>Editar</button>
+          <button class="btn btn-danger" onclick="excluirProduto('${r.id}')">Excluir</button>
+        </div>`
+      ]));
+      dt.clear().rows.add(rows).draw();
     }
 
-    const labels = data.map(v => v.data_venda);
-    const valores = data.map(v => v.quantidade);
+    function editarProduto(r){
+      document.getElementById('produtoId').value = r.id;
+      document.getElementById('sku').value = r.sku||'';
+      document.getElementById('modelo').value = r.modelo||'';
+      document.getElementById('categoria').value = r.categoria||'';
+      document.getElementById('nomeProduto').value = r.nome||'';
+      document.getElementById('cor').value = r.cor||'';
+      document.getElementById('tamanho').value = r.tamanho||'';
+      document.getElementById('precoFornecedor').value = r.preco_fornecedor||0;
+      document.getElementById('precoVenda').value = r.preco_venda||0;
+      document.getElementById('quantidade').value = r.quantidade||0;
+      mostrar('produtos');
+    }
 
-    new Chart(document.getElementById("chartVendas"), {
-      type: "line",
-      data: {
-        labels,
-        datasets: [{ label:"Vendas (últimos 14 dias)", data: valores, borderColor:"blue", fill:false }]
+    async function excluirProduto(id){
+      if (!confirm('Excluir este produto?')) return;
+      const { error } = await supabase.from('produtos').delete().eq('id', id);
+      if (error) return alert('Erro ao excluir: '+ error.message);
+      carregarProdutos(); carregarDashboard();
+    }
+
+    document.getElementById('formProduto').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const id = document.getElementById('produtoId').value;
+      const payload = {
+        sku: document.getElementById('sku').value.trim(),
+        modelo: document.getElementById('modelo').value,
+        categoria: document.getElementById('categoria').value.trim(),
+        nome: document.getElementById('nomeProduto').value.trim(),
+        cor: document.getElementById('cor').value.trim(),
+        tamanho: document.getElementById('tamanho').value.trim(),
+        preco_fornecedor: parseFloat(document.getElementById('precoFornecedor').value||0),
+        preco_venda: parseFloat(document.getElementById('precoVenda').value||0),
+        quantidade: parseInt(document.getElementById('quantidade').value||0),
+      };
+      if(!payload.sku) return alert('SKU é obrigatório');
+      let res;
+      if (id) res = await supabase.from('produtos').update(payload).eq('id', id).select().single();
+      else    res = await supabase.from('produtos').insert([payload]).select().single();
+      if (res.error) return alert('Erro: '+res.error.message);
+      resetForm('formProduto'); carregarProdutos(); carregarDashboard();
+    });
+
+    // autocomplete de categoria por modelo
+    document.addEventListener('change', (e)=>{
+      if (e.target?.id === 'modelo'){
+        const categoria = document.getElementById('categoria');
+        switch (e.target.value) {
+          case 'Camiseta': categoria.value = 'Casual'; break;
+          case 'Moletom': categoria.value = 'Inverno'; break;
+          case 'Calça': categoria.value = 'Social'; break;
+          case 'Calçado': categoria.value = 'Esportivo'; break;
+          default: categoria.value = '';
+        }
       }
     });
-  }
 
-  // Inicialização
-  (async ()=>{
-    try {
-      const { data, error } = await supabase.from("produtos").select("id").limit(1);
-      if (error) throw error;
-      document.getElementById("status").innerHTML = "✅ Conexão estabelecida!";
-      await diagnostico();
-      await carregarDashboard();
-    } catch(err) {
-      document.getElementById("status").innerHTML = "❌ Erro: " + err.message;
+    // ==========================
+    // FORNECEDORES
+    // ==========================
+    async function carregarFornecedores(){
+      const { data, error } = await supabase.from('fornecedores').select('*').order('created_at',{ascending:false}).limit(1000);
+      if (error){ console.error(error); return; }
+      const dt = ensureDT('dtFornecedores');
+      const rows = (data||[]).map(r=> ([
+        r.nome||'',
+        r.telefone||'',
+        r.email||'',
+        r.cnpj_cpf||'',
+        r.obs||'',
+        `<div class="flex gap-2">
+          <button class="btn btn-outline" onclick='editarFornecedor(${JSON.stringify(r).replaceAll("'","&apos;")})'>Editar</button>
+          <button class="btn btn-danger" onclick="excluirFornecedor('${r.id}')">Excluir</button>
+        </div>`
+      ]));
+      dt.clear().rows.add(rows).draw();
     }
-  })();
 
-  function mostrarSecao(sec) {
-    document.querySelectorAll(".content section").forEach(s=>s.style.display="none");
-    document.getElementById(sec).style.display="block";
-  }
-</script>
+    function editarFornecedor(r){
+      document.getElementById('fornecedorId').value = r.id;
+      document.getElementById('fornecedorNome').value = r.nome||'';
+      document.getElementById('fornecedorTelefone').value = r.telefone||'';
+      document.getElementById('fornecedorEmail').value = r.email||'';
+      document.getElementById('fornecedorCnpjCpf').value = r.cnpj_cpf||'';
+      document.getElementById('fornecedorObs').value = r.obs||'';
+      mostrar('fornecedores');
+    }
+
+    async function excluirFornecedor(id){
+      if (!confirm('Excluir este fornecedor?')) return;
+      const { error } = await supabase.from('fornecedores').delete().eq('id', id);
+      if (error) return alert('Erro ao excluir: '+ error.message);
+      carregarFornecedores();
+    }
+
+    document.getElementById('formFornecedor').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const id = document.getElementById('fornecedorId').value;
+      const payload = {
+        nome: document.getElementById('fornecedorNome').value.trim(),
+        telefone: document.getElementById('fornecedorTelefone').value.trim(),
+        email: document.getElementById('fornecedorEmail').value.trim(),
+        cnpj_cpf: document.getElementById('fornecedorCnpjCpf').value.trim(),
+        obs: document.getElementById('fornecedorObs').value.trim(),
+      };
+      if(!payload.nome) return alert('Nome é obrigatório');
+      let res;
+      if (id) res = await supabase.from('fornecedores').update(payload).eq('id', id).select().single();
+      else    res = await supabase.from('fornecedores').insert([payload]).select().single();
+      if (res.error) return alert('Erro: '+res.error.message);
+      resetForm('formFornecedor'); carregarFornecedores();
+    });
+
+    // ==========================
+    // COMPRAS
+    // ==========================
+    async function preencherSelectsCompra(){
+      const [pf, pp] = await Promise.all([
+        supabase.from('fornecedores').select('id,nome,cnpj_cpf').order('nome'),
+        supabase.from('produtos').select('id,sku,nome').order('sku')
+      ]);
+      const selF = document.getElementById('compraFornecedor');
+      const selP = document.getElementById('compraProduto');
+      selF.innerHTML = (pf.data||[]).map(f => `<option value="${f.id}">${f.nome} (${f.cnpj_cpf||'s/doc'})</option>`).join('');
+      selP.innerHTML = (pp.data||[]).map(p => `<option value="${p.id}">${p.sku} — ${p.nome||''}</option>`).join('');
+    }
+
+    async function carregarCompras(){
+      const { data, error } = await supabase.from('compras_view').select('*').order('data_compra',{ascending:false}).limit(500);
+      if (error){ console.error(error); return; }
+      const dt = ensureDT('dtCompras');
+      const rows = (data||[]).map(r=> ([
+        fmtDate(r.data_compra),
+        r.fornecedor_nome||'',
+        r.produto_sku||'',
+        r.quantidade||0,
+        brl(r.custo_unit||0),
+        r.obs||'',
+        `<button class="btn btn-danger" onclick="excluirCompra('${r.compra_id}')">Excluir</button>`
+      ]));
+      dt.clear().rows.add(rows).draw();
+    }
+
+    async function excluirCompra(id){
+      if (!confirm('Excluir esta compra? Isso reverte o estoque.')) return;
+      const { error } = await supabase.from('compras').delete().eq('id', id);
+      if (error) return alert('Erro: '+error.message);
+      carregarCompras(); carregarProdutos(); carregarDashboard();
+    }
+
+    document.getElementById('formCompra').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const payload = {
+        fornecedor_id: document.getElementById('compraFornecedor').value,
+        produto_id: document.getElementById('compraProduto').value,
+        quantidade: parseInt(document.getElementById('compraQuantidade').value||0),
+        custo_unit: parseFloat(document.getElementById('compraCusto').value||0),
+        obs: document.getElementById('compraObs').value.trim()
+      };
+      if (!payload.fornecedor_id || !payload.produto_id || payload.quantidade<=0) return alert('Dados da compra inválidos');
+      const { error } = await supabase.rpc('registrar_compra', {
+        p_fornecedor_id: payload.fornecedor_id,
+        p_produto_id: payload.produto_id,
+        p_quantidade: payload.quantidade,
+        p_custo: payload.custo_unit,
+        p_obs: payload.obs
+      });
+      if (error) return alert('Erro: '+error.message);
+      resetForm('formCompra'); carregarCompras(); carregarProdutos(); carregarDashboard();
+    });
+
+    // ==========================
+    // VENDAS
+    // ==========================
+    async function preencherSelectsVenda(){
+      const { data } = await supabase.from('produtos').select('id,sku,nome,quantidade').order('sku');
+      const sel = document.getElementById('vendaProduto');
+      sel.innerHTML = (data||[]).map(p => `<option value="${p.id}">${p.sku} — ${p.nome||''} (Estoque: ${p.quantidade||0})</option>`).join('');
+    }
+
+    async function carregarVendas(){
+      const { data, error } = await supabase.from('vendas_view').select('*').order('data',{ascending:false}).limit(1000);
+      if (error){ console.error(error); return; }
+      const dt = ensureDT('dtVendas');
+      const rows = (data||[]).map(r=> ([
+        fmtDate(r.data),
+        r.produto_sku||'',
+        r.quantidade||0,
+        brl(r.preco_unit||0),
+        r.descricao||'',
+        `<button class="btn btn-danger" onclick="excluirVenda('${r.venda_id}')">Excluir</button>`
+      ]));
+      dt.clear().rows.add(rows).draw();
+    }
+
+    async function excluirVenda(id){
+      if (!confirm('Excluir esta venda? Isso repõe o estoque.')) return;
+      const { error } = await supabase.from('vendas').delete().eq('id', id);
+      if (error) return alert('Erro: '+error.message);
+      carregarVendas(); carregarProdutos(); carregarDashboard();
+    }
+
+    document.getElementById('formVenda').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const payload = {
+        produto_id: document.getElementById('vendaProduto').value,
+        quantidade: parseInt(document.getElementById('vendaQuantidade').value||0),
+        preco: parseFloat(document.getElementById('vendaPreco').value||0),
+        descricao: document.getElementById('vendaDescricao').value.trim()
+      };
+      if (!payload.produto_id || payload.quantidade<=0) return alert('Dados da venda inválidos');
+      const { error } = await supabase.rpc('registrar_venda', {
+        p_produto_id: payload.produto_id,
+        p_quantidade: payload.quantidade,
+        p_preco: payload.preco,
+        p_descricao: payload.descricao
+      });
+      if (error) return alert('Erro: '+error.message);
+      resetForm('formVenda'); carregarVendas(); carregarProdutos(); carregarDashboard();
+    });
+
+    // ==========================
+    // FINANCEIRO
+    // ==========================
+    async function carregarFinanceiro(){
+      const { data, error } = await supabase.from('financeiro').select('*').order('data',{ascending:false}).limit(1000);
+      if (error){ console.error(error); return; }
+      const dt = ensureDT('dtFinanceiro');
+      const rows = (data||[]).map(r=> ([
+        r.data ? new Date(r.data).toLocaleDateString('pt-BR') : '',
+        r.tipo||'',
+        r.descricao||'',
+        brl(r.valor||0),
+        `<button class="btn btn-danger" onclick="excluirFinanceiro('${r.id}')">Excluir</button>`
+      ]));
+      dt.clear().rows.add(rows).draw();
+    }
+
+    async function excluirFinanceiro(id){
+      if (!confirm('Excluir lançamento financeiro?')) return;
+      const { error } = await supabase.from('financeiro').delete().eq('id', id);
+      if (error) return alert('Erro: '+error.message);
+      carregarFinanceiro(); carregarDashboard();
+    }
+
+    document.getElementById('formFinanceiro').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const id = document.getElementById('financeiroId').value;
+      const payload = {
+        tipo: document.getElementById('finTipo').value,
+        descricao: document.getElementById('finDescricao').value.trim(),
+        valor: parseFloat(document.getElementById('finValor').value||0),
+        data: document.getElementById('finData').value || new Date().toISOString()
+      };
+      let res;
+      if (id) res = await supabase.from('financeiro').update(payload).eq('id', id).select().single();
+      else    res = await supabase.from('financeiro').insert([payload]).select().single();
+      if (res.error) return alert('Erro: '+res.error.message);
+      resetForm('formFinanceiro'); carregarFinanceiro(); carregarDashboard();
+    });
+
+    // ==========================
+    // UPLOAD (UPSELLER)
+    // ==========================
+    document.getElementById('fileUpload').addEventListener('change', (e)=>{
+      const f = e.target.files[0];
+      document.getElementById('nomeArquivoInfo').textContent = f ? `Selecionado: ${f.name}` : '';
+    });
+
+    async function processarPlanilha(){
+      const file = document.getElementById("fileUpload").files[0];
+      if (!file){ alert("Selecione uma planilha!"); return; }
+
+      const fileName = file.name;
+
+      // Evita duplicidade pelo nome do arquivo
+      const { data: existe, error: eDup } = await supabase.from("uploads").select("id").eq("nome_arquivo", fileName).maybeSingle();
+      if (eDup){ return alert("Erro ao verificar duplicidade: "+eDup.message); }
+      if (existe){ return alert(`⚠️ Esta planilha (${fileName}) já foi importada.`); }
+
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type:'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet);
+
+      let sucessos = 0, falhas = 0;
+      const erros = [];
+
+      for (const row of rows) {
+        const sku = row["SKU"] || row["sku"];
+        const quantidade = parseInt(row["Qtd. do Produto"] ?? row["Quantidade"] ?? row["qtd"] ?? 0);
+        const nome = row["Nome do Produto"] || null;
+        const preco = parseFloat(row["Preço de Produto"] ?? row["preco"] ?? 0);
+        const custo = parseFloat(row["Custo do Produto"] ?? row["Custo Médio"] ?? 0);
+        const variacao = row["Variação"] || row["Categoria"] || "Importado";
+
+        if (!sku || !quantidade || quantidade<=0) {
+          falhas++; erros.push(`Linha sem SKU/Qtd válida: ${JSON.stringify(row)}`); continue;
+        }
+
+        try{
+          // upsert produto por SKU
+          const { data: existente, error: e1 } = await supabase.from("produtos").select("id").eq("sku", sku).maybeSingle();
+          if (e1) throw e1;
+
+          let produtoId;
+          if (!existente) {
+            const { data: novo, error: e2 } = await supabase.from("produtos").insert([{
+              sku, nome: nome || sku, modelo: variacao, categoria: variacao,
+              preco_fornecedor: isNaN(custo)?0:custo, preco_venda: isNaN(preco)?0:preco, quantidade: 0
+            }]).select('id').single();
+            if (e2) throw e2;
+            produtoId = novo.id;
+          } else {
+            produtoId = existente.id;
+          }
+
+          // registra venda (baixa estoque)
+          const { error: e3 } = await supabase.rpc("registrar_venda", {
+            p_produto_id: produtoId,
+            p_quantidade: quantidade,
+            p_preco: isNaN(preco)?0:preco,
+            p_descricao: "Venda UPSELLER"
+          });
+          if (e3) throw e3;
+
+          sucessos++;
+        }catch(err){
+          falhas++;
+          erros.push(`SKU ${sku}: ${err.message||err}`);
+        }
+      }
+
+      // grava upload
+      await supabase.from("uploads").insert([{ nome_arquivo: fileName, sucesso: sucessos, falhas }]);
+
+      // Saída visual
+      document.getElementById("resultadoUpload").innerHTML = `
+        <p class="text-green-700">✅ Sucessos: <b>${sucessos}</b></p>
+        <p class="text-red-700">❌ Falhas: <b>${falhas}</b></p>
+      `;
+      document.getElementById("errosDetalhados").textContent = erros.join("\n");
+
+      carregarUploads(); carregarVendas(); carregarProdutos(); carregarDashboard();
+    }
+
+    // ==========================
+    // HISTÓRICO UPLOADS
+    // ==========================
+    async function carregarUploads(){
+      const { data, error } = await supabase.from("uploads").select("*").order("data_upload", { ascending:false }).limit(500);
+      if (error){ console.error(error); return; }
+      const dt = ensureDT('dtUploads');
+      const rows = (data||[]).map(u=> ([
+        u.nome_arquivo,
+        fmtDate(u.data_upload),
+        u.sucesso||0,
+        u.falhas||0
+      ]));
+      dt.clear().rows.add(rows).draw();
+    }
+  </script>
 </body>
 </html>
