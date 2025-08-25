@@ -1,345 +1,936 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>ERP DROP</title>
+  <meta charset="UTF-8" />
+  <title>DROP ERP – MVP</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- XLSX -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+  <style>
+    .card { background: white; border-radius: 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,.1); padding: 1rem; }
+    .btn { padding: .5rem .875rem; border-radius: .5rem; font-weight: 600; }
+    .btn-primary { background:#2563eb; color:white; }
+    .btn-danger { background:#dc2626; color:white; }
+    .btn-secondary { background:#6b7280; color:white; }
+    .btn-outline { border:1px solid #d1d5db; }
+    .badge { display:inline-block; padding:.125rem .5rem; font-size:.75rem; border-radius:.5rem; background:#eef2ff; color:#3730a3; }
+    .hidden { display:none; }
+    table td, table th { border-bottom: 1px solid #e5e7eb; }
+    .table-wrap { overflow:auto; }
+  </style>
 </head>
-<body class="bg-gray-100 flex">
-
-  <!-- Sidebar -->
-  <aside class="w-64 bg-gray-900 text-white min-h-screen p-4">
-    <h1 class="text-2xl font-bold mb-8">DROP ERP</h1>
-    <nav class="space-y-2">
-      <button onclick="mostrar('dashboard')" class="w-full text-left p-2 rounded hover:bg-gray-700">📊 Dashboard</button>
-      <button onclick="mostrar('produtos')" class="w-full text-left p-2 rounded hover:bg-gray-700">📦 Produtos</button>
-      <button onclick="mostrar('fornecedores')" class="w-full text-left p-2 rounded hover:bg-gray-700">🏢 Fornecedores</button>
-      <button onclick="mostrar('vendas')" class="w-full text-left p-2 rounded hover:bg-gray-700">💰 Vendas</button>
-      <button onclick="mostrar('financeiro')" class="w-full text-left p-2 rounded hover:bg-gray-700">💵 Financeiro</button>
-      <button onclick="mostrar('upload')" class="w-full text-left p-2 rounded hover:bg-gray-700">📂 Upload UPSELLER</button>
-    </nav>
-  </aside>
-
-  <!-- Conteúdo -->
-  <main class="flex-1 p-6 space-y-6">
-
-    <!-- DASHBOARD -->
-    <section id="dashboard" class="hidden">
-      <h2 class="text-3xl font-bold mb-6">Dashboard</h2>
-      <div class="grid grid-cols-3 gap-4">
-        <div class="bg-white shadow rounded-lg p-4 text-center">
-          <p class="text-gray-500">Produtos em Estoque</p>
-          <h3 id="qtdProdutos" class="text-2xl font-bold">0</h3>
-        </div>
-        <div class="bg-white shadow rounded-lg p-4 text-center">
-          <p class="text-gray-500">Vendas (7 dias)</p>
-          <h3 id="vendasSemana" class="text-2xl font-bold">0</h3>
-        </div>
-        <div class="bg-white shadow rounded-lg p-4 text-center">
-          <p class="text-gray-500">Saldo Financeiro</p>
-          <h3 id="saldoFinanceiro" class="text-2xl font-bold">R$ 0,00</h3>
-        </div>
+<body class="bg-gray-100 min-h-screen">
+  <div class="flex">
+    <!-- Sidebar -->
+    <aside class="w-72 bg-gray-900 text-white min-h-screen p-5">
+      <h1 class="text-2xl font-extrabold tracking-tight mb-6">DROP ERP</h1>
+      <nav class="space-y-2">
+        <button class="w-full text-left btn btn-outline hover:bg-gray-800" onclick="mostrar('dashboard')">📊 Dashboard</button>
+        <button class="w-full text-left btn btn-outline hover:bg-gray-800" onclick="mostrar('produtos')">🧾 Produtos</button>
+        <button class="w-full text-left btn btn-outline hover:bg-gray-800" onclick="mostrar('fornecedores')">🏢 Fornecedores</button>
+        <button class="w-full text-left btn btn-outline hover:bg-gray-800" onclick="mostrar('compras')">🛒 Compras</button>
+        <button class="w-full text-left btn btn-outline hover:bg-gray-800" onclick="mostrar('vendas')">🧮 Vendas</button>
+        <button class="w-full text-left btn btn-outline hover:bg-gray-800" onclick="mostrar('financeiro')">💰 Financeiro</button>
+        <button class="w-full text-left btn btn-outline hover:bg-gray-800" onclick="mostrar('upload')">📂 Upload UPSELLER</button>
+        <button class="w-full text-left btn btn-outline hover:bg-gray-800" onclick="mostrar('uploads')">🕘 Histórico de Uploads</button>
+      </nav>
+      <div class="mt-8 text-sm text-gray-300">
+        <p><span class="opacity-70">Status:</span> <span id="statusConexao" class="badge">Conectando…</span></p>
       </div>
-      <div class="grid grid-cols-2 gap-4 mt-6">
-        <div class="bg-white shadow rounded-lg p-4">
-          <h3 class="font-semibold mb-2">Vendas por Produto</h3>
-          <canvas id="graficoVendas"></canvas>
-        </div>
-        <div class="bg-white shadow rounded-lg p-4">
-          <h3 class="font-semibold mb-2">Financeiro</h3>
-          <canvas id="graficoFinanceiro"></canvas>
-        </div>
-      </div>
-    </section>
+    </aside>
 
-    <!-- PRODUTOS -->
-    <section id="produtos" class="hidden">
-      <h2 class="text-3xl font-bold mb-6">Gerenciar Produtos</h2>
-      <form id="formProduto" class="space-y-4 max-w-2xl mb-6">
-        <input type="hidden" id="produtoId">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <input id="sku" placeholder="SKU" class="p-2 border rounded">
-          <select id="modelo" class="p-2 border rounded">
-            <option value="Camiseta">Camiseta</option>
-            <option value="Moletom">Moletom</option>
-            <option value="Calça">Calça</option>
-            <option value="Calçado">Calçado</option>
-          </select>
-          <input id="categoria" placeholder="Categoria" class="p-2 border rounded">
-          <input id="cor" placeholder="Cor" class="p-2 border rounded">
-          <input id="tamanho" placeholder="Tamanho" class="p-2 border rounded">
-          <input type="number" id="quantidade" placeholder="Qtd" class="p-2 border rounded">
-          <input type="number" step="0.01" id="precoFornecedor" placeholder="Preço Fornecedor" class="p-2 border rounded">
-          <input type="number" step="0.01" id="precoVenda" placeholder="Preço Venda" class="p-2 border rounded">
+    <!-- Main -->
+    <main class="flex-1 p-6 space-y-8">
+      <!-- DASHBOARD -->
+      <section id="dashboard" class="space-y-6">
+        <h2 class="text-3xl font-bold">Dashboard</h2>
+        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="card"><p class="text-gray-500">Produtos (total)</p><p id="kpiProdutos" class="text-3xl font-bold">0</p></div>
+          <div class="card"><p class="text-gray-500">Estoque (itens)</p><p id="kpiEstoque" class="text-3xl font-bold">0</p></div>
+          <div class="card"><p class="text-gray-500">Vendas (7 dias)</p><p id="kpiVendasSemana" class="text-3xl font-bold">0</p></div>
+          <div class="card"><p class="text-gray-500">Saldo Financeiro</p><p id="kpiSaldo" class="text-3xl font-bold">R$ 0,00</p></div>
         </div>
-        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Salvar</button>
-      </form>
-      <table class="w-full bg-white shadow rounded-lg" id="tabelaProdutos"></table>
-    </section>
 
-    <!-- FORNECEDORES -->
-    <section id="fornecedores" class="hidden">
-      <h2 class="text-3xl font-bold mb-6">Fornecedores</h2>
-      <form id="formFornecedor" class="space-y-4 max-w-2xl mb-6">
-        <input type="hidden" id="fornecedorId">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <input id="nomeFornecedor" placeholder="Nome" class="p-2 border rounded">
-          <input id="telefoneFornecedor" placeholder="Telefone" class="p-2 border rounded">
-          <input id="emailFornecedor" placeholder="E-mail" class="p-2 border rounded">
-          <input id="documentoFornecedor" placeholder="CPF/CNPJ" class="p-2 border rounded">
+        <div class="grid md:grid-cols-2 gap-6">
+          <div class="card">
+            <h3 class="font-semibold mb-2">Vendas por Dia (últimos 14)</h3>
+            <canvas id="graficoVendas"></canvas>
+          </div>
+          <div class="card">
+            <h3 class="font-semibold mb-2">Importações UPSELLER (30 dias)</h3>
+            <canvas id="graficoUploads"></canvas>
+          </div>
         </div>
-        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Salvar</button>
-      </form>
-      <table class="w-full bg-white shadow rounded-lg" id="tabelaFornecedores"></table>
-    </section>
 
-    <!-- VENDAS -->
-    <section id="vendas" class="hidden">
-      <h2 class="text-3xl font-bold mb-6">Registrar Vendas</h2>
-      <form id="formVendas" class="space-y-4 max-w-2xl mb-6">
-        <input type="hidden" id="vendaId">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <input id="skuVenda" placeholder="SKU Produto" class="p-2 border rounded">
-          <input type="number" id="quantidadeVenda" placeholder="Quantidade" class="p-2 border rounded">
-          <input type="number" step="0.01" id="precoVendaUnit" placeholder="Preço Unitário" class="p-2 border rounded">
+        <div class="card">
+          <h3 class="font-semibold mb-3">Resumo rápido das últimas importações</h3>
+          <div class="table-wrap">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="p-2 text-left">Arquivo</th>
+                  <th class="p-2 text-left">Data Upload</th>
+                  <th class="p-2">Sucessos</th>
+                  <th class="p-2">Falhas</th>
+                </tr>
+              </thead>
+              <tbody id="dashboardUploads"></tbody>
+            </table>
+          </div>
         </div>
-        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Salvar</button>
-      </form>
-      <table class="w-full bg-white shadow rounded-lg" id="tabelaVendas"></table>
-    </section>
+      </section>
 
-    <!-- FINANCEIRO -->
-    <section id="financeiro" class="hidden">
-      <h2 class="text-3xl font-bold mb-6">Financeiro</h2>
-      <form id="formFinanceiro" class="space-y-4 max-w-2xl mb-6">
-        <input type="hidden" id="financeiroId">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <select id="tipoLancamento" class="p-2 border rounded">
-            <option value="Entrada">Entrada</option>
-            <option value="Saida">Saída</option>
-          </select>
-          <input id="descricaoLancamento" placeholder="Descrição" class="p-2 border rounded">
-          <input type="number" step="0.01" id="valorLancamento" placeholder="Valor" class="p-2 border rounded">
+      <!-- PRODUTOS -->
+      <section id="produtos" class="hidden space-y-6">
+        <h2 class="text-3xl font-bold">Produtos</h2>
+
+        <form id="formProduto" class="card space-y-4">
+          <input type="hidden" id="produtoId">
+          <div class="grid md:grid-cols-4 gap-3">
+            <div>
+              <label class="text-sm text-gray-600">SKU</label>
+              <input id="sku" class="w-full p-2 border rounded" placeholder="Ex: CAMIS-ML-PT-M">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Modelo</label>
+              <select id="modelo" class="w-full p-2 border rounded">
+                <option value="Camiseta">Camiseta</option>
+                <option value="Moletom">Moletom</option>
+                <option value="Calça">Calça</option>
+                <option value="Calçado">Calçado</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Categoria</label>
+              <input id="categoria" class="w-full p-2 border rounded" placeholder="Casual, Inverno, Social, Esportivo">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Nome</label>
+              <input id="nomeProduto" class="w-full p-2 border rounded" placeholder="Nome do produto">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Cor</label>
+              <input id="cor" class="w-full p-2 border rounded">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Tamanho</label>
+              <input id="tamanho" class="w-full p-2 border rounded" placeholder="P, M, G, 40, 42…">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Preço Fornecedor</label>
+              <input type="number" step="0.01" id="precoFornecedor" class="w-full p-2 border rounded">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Preço Venda</label>
+              <input type="number" step="0.01" id="precoVenda" class="w-full p-2 border rounded">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Quantidade</label>
+              <input type="number" id="quantidade" class="w-full p-2 border rounded" value="0">
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-primary" type="submit">Salvar</button>
+            <button type="button" class="btn btn-secondary" onclick="resetForm('formProduto')">Limpar</button>
+          </div>
+        </form>
+
+        <div class="card">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-semibold">Lista de Produtos</h3>
+            <input id="buscaProdutos" class="p-2 border rounded" placeholder="Buscar por SKU ou Nome" oninput="carregarProdutos()">
+          </div>
+          <div class="table-wrap">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="p-2 text-left">SKU</th>
+                  <th class="p-2 text-left">Nome</th>
+                  <th class="p-2 text-left">Modelo/Categoria</th>
+                  <th class="p-2">Cor</th>
+                  <th class="p-2">Tam</th>
+                  <th class="p-2 text-right">Fornecedor</th>
+                  <th class="p-2 text-right">Venda</th>
+                  <th class="p-2 text-right">Qtd</th>
+                  <th class="p-2">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaProdutos"></tbody>
+            </table>
+          </div>
         </div>
-        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Salvar</button>
-      </form>
-      <table class="w-full bg-white shadow rounded-lg" id="tabelaFinanceiro"></table>
-    </section>
+      </section>
 
-    <!-- UPLOAD UPSELLER -->
-    <section id="upload" class="hidden">
-      <h2 class="text-3xl font-bold mb-6">Upload Planilha UPSELLER</h2>
-      <input type="file" id="fileUpload" class="mb-4">
-      <button onclick="processarPlanilha()" class="bg-green-600 text-white px-4 py-2 rounded">Processar</button>
-      <div id="resultadoUpload" class="mt-4"></div>
-    </section>
+      <!-- FORNECEDORES -->
+      <section id="fornecedores" class="hidden space-y-6">
+        <h2 class="text-3xl font-bold">Fornecedores</h2>
 
-  </main>
+        <form id="formFornecedor" class="card space-y-4">
+          <input type="hidden" id="fornecedorId">
+          <div class="grid md:grid-cols-5 gap-3">
+            <div><label class="text-sm text-gray-600">Nome</label><input id="fornecedorNome" class="w-full p-2 border rounded"></div>
+            <div><label class="text-sm text-gray-600">Telefone</label><input id="fornecedorTelefone" class="w-full p-2 border rounded"></div>
+            <div><label class="text-sm text-gray-600">Email</label><input id="fornecedorEmail" class="w-full p-2 border rounded"></div>
+            <div><label class="text-sm text-gray-600">CNPJ/CPF</label><input id="fornecedorCnpjCpf" class="w-full p-2 border rounded"></div>
+            <div><label class="text-sm text-gray-600">Observações</label><input id="fornecedorObs" class="w-full p-2 border rounded"></div>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-primary" type="submit">Salvar</button>
+            <button type="button" class="btn btn-secondary" onclick="resetForm('formFornecedor')">Limpar</button>
+          </div>
+        </form>
+
+        <div class="card">
+          <div class="flex items-center gap-2 mb-3">
+            <input id="buscaFornecedor" class="p-2 border rounded" placeholder="Buscar por nome ou CNPJ/CPF" oninput="carregarFornecedores()">
+            <span class="text-sm text-gray-500">Use a busca para verificar se já está cadastrado.</span>
+          </div>
+          <div class="table-wrap">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="p-2 text-left">Nome</th>
+                  <th class="p-2">Telefone</th>
+                  <th class="p-2">Email</th>
+                  <th class="p-2">CNPJ/CPF</th>
+                  <th class="p-2">Obs</th>
+                  <th class="p-2">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaFornecedores"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- COMPRAS -->
+      <section id="compras" class="hidden space-y-6">
+        <h2 class="text-3xl font-bold">Compras</h2>
+
+        <form id="formCompra" class="card space-y-4">
+          <input type="hidden" id="compraId">
+          <div class="grid md:grid-cols-5 gap-3">
+            <div class="md:col-span-2">
+              <label class="text-sm text-gray-600">Fornecedor</label>
+              <select id="compraFornecedor" class="w-full p-2 border rounded"></select>
+            </div>
+            <div class="md:col-span-2">
+              <label class="text-sm text-gray-600">Produto</label>
+              <select id="compraProduto" class="w-full p-2 border rounded"></select>
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Quantidade</label>
+              <input type="number" id="compraQuantidade" class="w-full p-2 border rounded" value="1">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Custo Unitário</label>
+              <input type="number" step="0.01" id="compraCusto" class="w-full p-2 border rounded" value="0">
+            </div>
+            <div class="md:col-span-2">
+              <label class="text-sm text-gray-600">Obs</label>
+              <input id="compraObs" class="w-full p-2 border rounded">
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-primary" type="submit">Lançar Compra</button>
+            <button type="button" class="btn btn-secondary" onclick="resetForm('formCompra')">Limpar</button>
+          </div>
+        </form>
+
+        <div class="card">
+          <h3 class="font-semibold mb-2">Últimas Compras</h3>
+          <div class="table-wrap">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="p-2 text-left">Data</th>
+                  <th class="p-2 text-left">Fornecedor</th>
+                  <th class="p-2 text-left">Produto (SKU)</th>
+                  <th class="p-2 text-right">Qtd</th>
+                  <th class="p-2 text-right">Custo</th>
+                  <th class="p-2 text-left">Obs</th>
+                  <th class="p-2">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaCompras"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- VENDAS -->
+      <section id="vendas" class="hidden space-y-6">
+        <h2 class="text-3xl font-bold">Vendas</h2>
+
+        <form id="formVenda" class="card space-y-4">
+          <input type="hidden" id="vendaId">
+          <div class="grid md:grid-cols-5 gap-3">
+            <div class="md:col-span-3">
+              <label class="text-sm text-gray-600">Produto</label>
+              <select id="vendaProduto" class="w-full p-2 border rounded"></select>
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Quantidade</label>
+              <input type="number" id="vendaQuantidade" class="w-full p-2 border rounded" value="1">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Preço Unitário</label>
+              <input type="number" step="0.01" id="vendaPreco" class="w-full p-2 border rounded" value="0">
+            </div>
+            <div class="md:col-span-5">
+              <label class="text-sm text-gray-600">Descrição</label>
+              <input id="vendaDescricao" class="w-full p-2 border rounded" placeholder="Obs ou canal de venda">
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-primary" type="submit">Registrar Venda</button>
+            <button type="button" class="btn btn-secondary" onclick="resetForm('formVenda')">Limpar</button>
+          </div>
+        </form>
+
+        <div class="card">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-semibold">Vendas Recentes</h3>
+            <input id="buscaVendas" class="p-2 border rounded" placeholder="Buscar por SKU/Descrição" oninput="carregarVendas()">
+          </div>
+          <div class="table-wrap">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="p-2 text-left">Data</th>
+                  <th class="p-2 text-left">Produto (SKU)</th>
+                  <th class="p-2 text-right">Qtd</th>
+                  <th class="p-2 text-right">Preço</th>
+                  <th class="p-2 text-left">Descrição</th>
+                  <th class="p-2">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaVendas"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- FINANCEIRO -->
+      <section id="financeiro" class="hidden space-y-6">
+        <h2 class="text-3xl font-bold">Financeiro</h2>
+
+        <form id="formFinanceiro" class="card space-y-4">
+          <input type="hidden" id="financeiroId">
+          <div class="grid md:grid-cols-5 gap-3">
+            <div>
+              <label class="text-sm text-gray-600">Tipo</label>
+              <select id="finTipo" class="w-full p-2 border rounded">
+                <option value="Entrada">Entrada</option>
+                <option value="Saida">Saída</option>
+              </select>
+            </div>
+            <div class="md:col-span-2">
+              <label class="text-sm text-gray-600">Descrição</label>
+              <input id="finDescricao" class="w-full p-2 border rounded">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Valor</label>
+              <input type="number" step="0.01" id="finValor" class="w-full p-2 border rounded" value="0">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">Data</label>
+              <input type="date" id="finData" class="w-full p-2 border rounded">
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-primary" type="submit">Lançar</button>
+            <button type="button" class="btn btn-secondary" onclick="resetForm('formFinanceiro')">Limpar</button>
+          </div>
+        </form>
+
+        <div class="card">
+          <h3 class="font-semibold mb-2">Movimentos Financeiros</h3>
+          <div class="table-wrap">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="p-2 text-left">Data</th>
+                  <th class="p-2 text-left">Tipo</th>
+                  <th class="p-2 text-left">Descrição</th>
+                  <th class="p-2 text-right">Valor</th>
+                  <th class="p-2">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaFinanceiro"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- UPLOAD -->
+      <section id="upload" class="hidden space-y-6">
+        <h2 class="text-3xl font-bold">Upload – UPSELLER</h2>
+
+        <div class="card space-y-3">
+          <p class="text-gray-600">Selecione a planilha (.xlsx ou .csv) exportada do UPSELLER. O sistema:</p>
+          <ul class="list-disc pl-6 text-gray-600">
+            <li>Cadastra automaticamente novos produtos (se o SKU não existir)</li>
+            <li>Registra as vendas e dá baixa no estoque</li>
+            <li>Evita processar o mesmo arquivo mais de uma vez</li>
+          </ul>
+
+          <input type="file" id="fileUpload" class="block">
+          <div class="flex items-center gap-2">
+            <button class="btn btn-primary" onclick="processarPlanilha()">Processar e Baixar Estoque</button>
+            <span id="nomeArquivoInfo" class="text-sm text-gray-500"></span>
+          </div>
+
+          <div id="resultadoUpload" class="mt-3 text-sm"></div>
+        </div>
+
+        <div class="card">
+          <h3 class="font-semibold mb-2">Erros detalhados</h3>
+          <pre id="errosDetalhados" class="p-3 bg-gray-50 rounded overflow-auto text-sm"></pre>
+        </div>
+      </section>
+
+      <!-- HISTÓRICO UPLOADS -->
+      <section id="uploads" class="hidden space-y-6">
+        <h2 class="text-3xl font-bold">Histórico de Uploads</h2>
+        <div class="card table-wrap">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="p-2 text-left">Arquivo</th>
+                <th class="p-2">Data</th>
+                <th class="p-2">Sucesso</th>
+                <th class="p-2">Falhas</th>
+              </tr>
+            </thead>
+            <tbody id="tabelaUploads"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
 
   <script>
     // ====== CONFIG: Supabase ======
-    const SUPABASE_URL = "https://ifkounurhfzwypnkywzz.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlma291bnVyaGZ6d3lwbmt5d3p6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2MjczMDQsImV4cCI6MjA3MTIwMzMwNH0.0yHrecXrnPByyP2gFFvRI76r918Q4VQZxuHq7xz_neI";
+    const SUPABASE_URL = "https://SUA-URL.supabase.co"; // <-- troque
+    const SUPABASE_KEY = "SUA_CHAVE_ANON";              // <-- troque
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // ====== Navegação ======
-    function mostrar(secao) {
-      document.querySelectorAll("main section").forEach(s => s.classList.add("hidden"));
-      document.getElementById(secao).classList.remove("hidden");
-      if (secao === "dashboard") carregarDashboard();
-      if (secao === "produtos") carregarProdutos();
-      if (secao === "fornecedores") carregarFornecedores();
-      if (secao === "vendas") carregarVendas();
-      if (secao === "financeiro") carregarFinanceiro();
+    function mostrar(id) {
+      document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
+      document.getElementById(id).classList.remove('hidden');
+      // carregamentos específicos
+      if (id === 'dashboard') carregarDashboard();
+      if (id === 'produtos') carregarProdutos();
+      if (id === 'fornecedores') carregarFornecedores();
+      if (id === 'compras') { carregarCompras(); preencherSelectsCompra(); }
+      if (id === 'vendas') { carregarVendas(); preencherSelectsVenda(); }
+      if (id === 'financeiro') carregarFinanceiro();
+      if (id === 'uploads') carregarUploads();
     }
-    mostrar("dashboard");
 
-    // ======================================================
-    // DASHBOARD
+    // ====== Helpers ======
+    function resetForm(formId) {
+      const form = document.getElementById(formId);
+      form.reset();
+      // limpa hidden ids se existirem
+      const hiddens = form.querySelectorAll('input[type="hidden"]');
+      hiddens.forEach(h => h.value = "");
+    }
+    function brl(v) { return (v ?? 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' }); }
+    function fmtDate(d) { return new Date(d).toLocaleString('pt-BR'); }
+    function setStatus(ok) {
+      const el = document.getElementById('statusConexao');
+      if (ok) { el.textContent = 'Conectado'; el.style.background='#dcfce7'; el.style.color='#166534'; }
+      else { el.textContent = 'Falha'; el.style.background='#fee2e2'; el.style.color='#991b1b'; }
+    }
+    // autocomplete categoria por modelo
+    document.addEventListener('change', (e) => {
+      if (e.target?.id === 'modelo') {
+        const categoria = document.getElementById('categoria');
+        switch (e.target.value) {
+          case 'Camiseta': categoria.value = 'Casual'; break;
+          case 'Moletom': categoria.value = 'Inverno'; break;
+          case 'Calça': categoria.value = 'Social'; break;
+          case 'Calçado': categoria.value = 'Esportivo'; break;
+          default: categoria.value = '';
+        }
+      }
+    });
+
+    // ====== Init ======
+    (async () => {
+      // teste de conexão
+      try {
+        const { error } = await supabase.from('produtos').select('id').limit(1);
+        setStatus(!error);
+      } catch(e){ setStatus(false); }
+      mostrar('dashboard');
+    })();
+
+    // ====== Dashboard ======
     async function carregarDashboard() {
-      // Produtos
-      let { data: produtos } = await supabase.from("produtos").select("quantidade");
-      const qtd = produtos?.reduce((s, p) => s + (p.quantidade || 0), 0) || 0;
-      document.getElementById("qtdProdutos").textContent = qtd;
+      // KPIs
+      const { data: p } = await supabase.from('produtos').select('quantidade');
+      const { data: fin } = await supabase.from('financeiro').select('tipo,valor');
+      const { data: v } = await supabase.from('vendas').select('data, quantidade');
+      const { data: up } = await supabase.from('uploads').select('*').order('data_upload', { ascending:false }).limit(5);
 
-      // Vendas últimos 7 dias
-      let { data: vendas } = await supabase.from("vendas").select("data, quantidade");
-      const ultimos7 = vendas?.filter(v => (new Date() - new Date(v.data)) / (1000*60*60*24) <= 7) || [];
-      document.getElementById("vendasSemana").textContent = ultimos7.reduce((s,v) => s + v.quantidade, 0);
+      const kpiProdutos = p?.length ?? 0;
+      const kpiEstoque = (p||[]).reduce((s,x)=> s+(x.quantidade||0), 0);
 
-      // Financeiro saldo
-      let { data: financeiro } = await supabase.from("financeiro").select("tipo, valor");
-      let saldo = 0;
-      financeiro?.forEach(f => saldo += f.tipo === "Entrada" ? f.valor : -f.valor);
-      document.getElementById("saldoFinanceiro").textContent = `R$ ${saldo.toFixed(2)}`;
+      const semana = (v||[]).filter(x => (Date.now() - new Date(x.data)) / 86400000 <= 7);
+      const kpiVendasSemana = semana.reduce((s,x)=> s+(x.quantidade||0), 0);
 
-      // Gráfico Vendas
-      new Chart(document.getElementById("graficoVendas"), {
-        type: "bar",
-        data: {
-          labels: ultimos7.map(v => new Date(v.data).toLocaleDateString("pt-BR")),
-          datasets: [{ label: "Qtd", data: ultimos7.map(v => v.quantidade), backgroundColor: "blue" }]
-        }
+      const saldo = (fin||[]).reduce((s,x)=> s + (x.tipo === 'Entrada' ? +x.valor : -x.valor), 0);
+
+      document.getElementById('kpiProdutos').textContent = kpiProdutos;
+      document.getElementById('kpiEstoque').textContent = kpiEstoque;
+      document.getElementById('kpiVendasSemana').textContent = kpiVendasSemana;
+      document.getElementById('kpiSaldo').textContent = brl(saldo);
+
+      // Vendas por dia (14 dias)
+      const porDia = {};
+      (v||[]).forEach(row => {
+        const d = new Date(row.data); d.setHours(0,0,0,0);
+        const k = d.toISOString().slice(0,10);
+        porDia[k] = (porDia[k]||0) + (row.quantidade||0);
+      });
+      const dias = [...Array(14)].map((_,i)=>{
+        const d=new Date(); d.setDate(d.getDate() - (13-i)); return d.toISOString().slice(0,10);
+      });
+      const vendasSerie = dias.map(d => porDia[d]||0);
+      new Chart(document.getElementById('graficoVendas'), {
+        type:'bar',
+        data:{ labels: dias.map(d=> d.slice(5)), datasets:[{ label:'Qtd', data: vendasSerie }] },
+        options:{ responsive:true, maintainAspectRatio:false }
       });
 
-      // Gráfico Financeiro
-      new Chart(document.getElementById("graficoFinanceiro"), {
-        type: "line",
-        data: {
-          labels: financeiro?.map(f => f.tipo) || [],
-          datasets: [{ label: "R$", data: financeiro?.map(f => f.valor) || [], borderColor: "green", fill: false }]
-        }
+      // Uploads 30 dias
+      const porDiaUp = {};
+      (up||[]).forEach(u=>{
+        const d = new Date(u.data_upload); d.setHours(0,0,0,0);
+        const k = d.toISOString().slice(0,10);
+        porDiaUp[k] = (porDiaUp[k]||0) + (u.sucesso||0);
+      });
+      const diasUp = [...Array(30)].map((_,i)=>{
+        const d=new Date(); d.setDate(d.getDate() - (29-i)); return d.toISOString().slice(0,10);
+      });
+      const serieUp = diasUp.map(d => porDiaUp[d]||0);
+      new Chart(document.getElementById('graficoUploads'), {
+        type:'line',
+        data:{ labels: diasUp.map(d=> d.slice(5)), datasets:[{ label:'Itens importados', data: serieUp }] },
+        options:{ responsive:true, maintainAspectRatio:false }
+      });
+
+      // Tabela últimas importações
+      const tbody = document.getElementById('dashboardUploads');
+      tbody.innerHTML = '';
+      (up||[]).forEach(u=>{
+        tbody.innerHTML += `
+          <tr>
+            <td class="p-2">${u.nome_arquivo}</td>
+            <td class="p-2">${fmtDate(u.data_upload)}</td>
+            <td class="p-2 text-center text-green-700">${u.sucesso||0}</td>
+            <td class="p-2 text-center text-red-700">${u.falhas||0}</td>
+          </tr>`;
       });
     }
 
-    // ======================================================
-    // PRODUTOS
+    // ====== Produtos (CRUD) ======
     async function carregarProdutos() {
-      const { data } = await supabase.from("produtos").select("*");
-      const tabela = document.getElementById("tabelaProdutos");
-      tabela.innerHTML = "<tr class='bg-gray-200'><th>SKU</th><th>Modelo</th><th>Categoria</th><th>Qtd</th><th>Ações</th></tr>";
-      data?.forEach(p => {
-        tabela.innerHTML += `<tr>
-          <td>${p.sku}</td><td>${p.modelo}</td><td>${p.categoria}</td><td>${p.quantidade}</td>
-          <td>
-            <button onclick="editarProduto(${p.id})" class="text-blue-600">Editar</button> | 
-            <button onclick="excluirProduto(${p.id})" class="text-red-600">Excluir</button>
-          </td>
-        </tr>`;
+      const q = (document.getElementById('buscaProdutos')?.value || '').trim();
+      let query = supabase.from('produtos').select('*').order('created_at', { ascending:false }).limit(500);
+      if (q) query = query.or(`sku.ilike.%${q}%,nome.ilike.%${q}%`);
+      const { data, error } = await query;
+      if (error) { console.error(error); return; }
+      const tbody = document.getElementById('tabelaProdutos');
+      tbody.innerHTML = '';
+      (data||[]).forEach(r=>{
+        tbody.innerHTML += `
+          <tr>
+            <td class="p-2">${r.sku||''}</td>
+            <td class="p-2">${r.nome||''}</td>
+            <td class="p-2">${r.modelo||''} / ${r.categoria||''}</td>
+            <td class="p-2 text-center">${r.cor||''}</td>
+            <td class="p-2 text-center">${r.tamanho||''}</td>
+            <td class="p-2 text-right">${brl(r.preco_fornecedor)}</td>
+            <td class="p-2 text-right">${brl(r.preco_venda)}</td>
+            <td class="p-2 text-right">${r.quantidade||0}</td>
+            <td class="p-2">
+              <div class="flex gap-2">
+                <button class="btn btn-outline" onclick='editarProduto(${JSON.stringify(r).replaceAll("'", "&apos;")})'>Editar</button>
+                <button class="btn btn-danger" onclick="excluirProduto('${r.id}')">Excluir</button>
+              </div>
+            </td>
+          </tr>`;
       });
     }
-    document.getElementById("formProduto").onsubmit = async (e) => {
-      e.preventDefault();
-      const id = document.getElementById("produtoId").value;
-      const produto = {
-        sku: sku.value, modelo: modelo.value, categoria: categoria.value, cor: cor.value,
-        tamanho: tamanho.value, quantidade: parseInt(quantidade.value), 
-        preco_fornecedor: parseFloat(precoFornecedor.value), preco_venda: parseFloat(precoVenda.value)
-      };
-      if (id) await supabase.from("produtos").update(produto).eq("id", id);
-      else await supabase.from("produtos").insert([produto]);
-      e.target.reset(); document.getElementById("produtoId").value = "";
-      carregarProdutos();
-    };
-    async function editarProduto(id) {
-      const { data } = await supabase.from("produtos").select("*").eq("id", id).single();
-      Object.keys(data).forEach(k => { if(document.getElementById(k)) document.getElementById(k).value = data[k]; });
-      document.getElementById("produtoId").value = id;
+    function editarProduto(r) {
+      document.getElementById('produtoId').value = r.id;
+      document.getElementById('sku').value = r.sku||'';
+      document.getElementById('modelo').value = r.modelo||'';
+      document.getElementById('categoria').value = r.categoria||'';
+      document.getElementById('nomeProduto').value = r.nome||'';
+      document.getElementById('cor').value = r.cor||'';
+      document.getElementById('tamanho').value = r.tamanho||'';
+      document.getElementById('precoFornecedor').value = r.preco_fornecedor||0;
+      document.getElementById('precoVenda').value = r.preco_venda||0;
+      document.getElementById('quantidade').value = r.quantidade||0;
+      mostrar('produtos');
     }
     async function excluirProduto(id) {
-      await supabase.from("produtos").delete().eq("id", id);
+      if (!confirm('Excluir este produto?')) return;
+      const { error } = await supabase.from('produtos').delete().eq('id', id);
+      if (error) return alert('Erro ao excluir: '+ error.message);
       carregarProdutos();
     }
-
-    // ======================================================
-    // FORNECEDORES
-    async function carregarFornecedores() {
-      const { data } = await supabase.from("fornecedores").select("*");
-      const tabela = document.getElementById("tabelaFornecedores");
-      tabela.innerHTML = "<tr class='bg-gray-200'><th>Nome</th><th>Telefone</th><th>Email</th><th>Documento</th><th>Ações</th></tr>";
-      data?.forEach(f => {
-        tabela.innerHTML += `<tr>
-          <td>${f.nome}</td><td>${f.telefone}</td><td>${f.email}</td><td>${f.documento}</td>
-          <td>
-            <button onclick="editarFornecedor(${f.id})" class="text-blue-600">Editar</button> | 
-            <button onclick="excluirFornecedor(${f.id})" class="text-red-600">Excluir</button>
-          </td>
-        </tr>`;
-      });
-    }
-    document.getElementById("formFornecedor").onsubmit = async (e) => {
+    document.getElementById('formProduto').addEventListener('submit', async (e)=>{
       e.preventDefault();
-      const id = document.getElementById("fornecedorId").value;
-      const fornecedor = {
-        nome: nomeFornecedor.value, telefone: telefoneFornecedor.value,
-        email: emailFornecedor.value, documento: documentoFornecedor.value
+      const id = document.getElementById('produtoId').value;
+      const payload = {
+        sku: document.getElementById('sku').value.trim(),
+        modelo: document.getElementById('modelo').value,
+        categoria: document.getElementById('categoria').value.trim(),
+        nome: document.getElementById('nomeProduto').value.trim(),
+        cor: document.getElementById('cor').value.trim(),
+        tamanho: document.getElementById('tamanho').value.trim(),
+        preco_fornecedor: parseFloat(document.getElementById('precoFornecedor').value||0),
+        preco_venda: parseFloat(document.getElementById('precoVenda').value||0),
+        quantidade: parseInt(document.getElementById('quantidade').value||0),
       };
-      if (id) await supabase.from("fornecedores").update(fornecedor).eq("id", id);
-      else await supabase.from("fornecedores").insert([fornecedor]);
-      e.target.reset(); document.getElementById("fornecedorId").value = "";
-      carregarFornecedores();
-    };
-    async function editarFornecedor(id) {
-      const { data } = await supabase.from("fornecedores").select("*").eq("id", id).single();
-      nomeFornecedor.value = data.nome; telefoneFornecedor.value = data.telefone;
-      emailFornecedor.value = data.email; documentoFornecedor.value = data.documento;
-      fornecedorId.value = id;
-    }
-    async function excluirFornecedor(id) {
-      await supabase.from("fornecedores").delete().eq("id", id);
-      carregarFornecedores();
-    }
+      if (!payload.sku) return alert('SKU é obrigatório');
+      let res;
+      if (id) res = await supabase.from('produtos').update(payload).eq('id', id).select().single();
+      else res = await supabase.from('produtos').insert([payload]).select().single();
+      if (res.error) return alert('Erro: '+res.error.message);
+      resetForm('formProduto');
+      carregarProdutos();
+    });
 
-    // ======================================================
-    // VENDAS
-    async function carregarVendas() {
-      const { data } = await supabase.from("vendas").select("*, produtos(sku)").order("data", { ascending: false });
-      const tabela = document.getElementById("tabelaVendas");
-      tabela.innerHTML = "<tr class='bg-gray-200'><th>SKU</th><th>Qtd</th><th>Preço</th><th>Data</th></tr>";
-      data?.forEach(v => {
-        tabela.innerHTML += `<tr>
-          <td>${v.produtos?.sku || "-"}</td><td>${v.quantidade}</td><td>R$ ${v.preco}</td><td>${new Date(v.data).toLocaleString()}</td>
-        </tr>`;
+    // ====== Fornecedores (CRUD + busca) ======
+    async function carregarFornecedores() {
+      const q = (document.getElementById('buscaFornecedor')?.value || '').trim();
+      let query = supabase.from('fornecedores').select('*').order('created_at',{ascending:false}).limit(500);
+      if (q) query = query.or(`nome.ilike.%${q}%,cnpj_cpf.ilike.%${q}%`);
+      const { data, error } = await query;
+      if (error) { console.error(error); return; }
+      const tbody = document.getElementById('tabelaFornecedores');
+      tbody.innerHTML = '';
+      (data||[]).forEach(r=>{
+        tbody.innerHTML += `
+          <tr>
+            <td class="p-2">${r.nome||''}</td>
+            <td class="p-2 text-center">${r.telefone||''}</td>
+            <td class="p-2 text-center">${r.email||''}</td>
+            <td class="p-2 text-center">${r.cnpj_cpf||''}</td>
+            <td class="p-2">${r.obs||''}</td>
+            <td class="p-2">
+              <div class="flex gap-2">
+                <button class="btn btn-outline" onclick='editarFornecedor(${JSON.stringify(r).replaceAll("'", "&apos;")})'>Editar</button>
+                <button class="btn btn-danger" onclick="excluirFornecedor('${r.id}')">Excluir</button>
+              </div>
+            </td>
+          </tr>`;
       });
     }
-    document.getElementById("formVendas").onsubmit = async (e) => {
+    function editarFornecedor(r){
+      document.getElementById('fornecedorId').value = r.id;
+      document.getElementById('fornecedorNome').value = r.nome||'';
+      document.getElementById('fornecedorTelefone').value = r.telefone||'';
+      document.getElementById('fornecedorEmail').value = r.email||'';
+      document.getElementById('fornecedorCnpjCpf').value = r.cnpj_cpf||'';
+      document.getElementById('fornecedorObs').value = r.obs||'';
+      mostrar('fornecedores');
+    }
+    async function excluirFornecedor(id){
+      if (!confirm('Excluir este fornecedor?')) return;
+      const { error } = await supabase.from('fornecedores').delete().eq('id', id);
+      if (error) return alert('Erro ao excluir: '+ error.message);
+      carregarFornecedores();
+    }
+    document.getElementById('formFornecedor').addEventListener('submit', async (e)=>{
       e.preventDefault();
-      const sku = skuVenda.value, qtd = parseInt(quantidadeVenda.value), preco = parseFloat(precoVendaUnit.value);
-      const { data: produto } = await supabase.from("produtos").select("id").eq("sku", sku).single();
-      if (!produto) return alert("Produto não encontrado");
-      await supabase.rpc("registrar_venda", { p_produto_id: produto.id, p_quantidade: qtd, p_preco: preco, p_descricao: "Venda Manual" });
-      e.target.reset(); carregarVendas();
-    };
+      const id = document.getElementById('fornecedorId').value;
+      const payload = {
+        nome: document.getElementById('fornecedorNome').value.trim(),
+        telefone: document.getElementById('fornecedorTelefone').value.trim(),
+        email: document.getElementById('fornecedorEmail').value.trim(),
+        cnpj_cpf: document.getElementById('fornecedorCnpjCpf').value.trim(),
+        obs: document.getElementById('fornecedorObs').value.trim(),
+      };
+      if (!payload.nome) return alert('Nome é obrigatório');
+      // upsert por cnpj_cpf se quiser (opcional)
+      let res;
+      if (id) res = await supabase.from('fornecedores').update(payload).eq('id', id).select().single();
+      else    res = await supabase.from('fornecedores').insert([payload]).select().single();
+      if (res.error) return alert('Erro: '+res.error.message);
+      resetForm('formFornecedor');
+      carregarFornecedores();
+    });
 
-    // ======================================================
-    // FINANCEIRO
+    // ====== Compras (cria movimento de estoque positivo) ======
+    async function preencherSelectsCompra() {
+      const [pf, pp] = await Promise.all([
+        supabase.from('fornecedores').select('id,nome,cnpj_cpf').order('nome'),
+        supabase.from('produtos').select('id,sku,nome').order('sku')
+      ]);
+      const selF = document.getElementById('compraFornecedor');
+      const selP = document.getElementById('compraProduto');
+      selF.innerHTML = (pf.data||[]).map(f => `<option value="${f.id}">${f.nome} (${f.cnpj_cpf||'s/ doc'})</option>`).join('');
+      selP.innerHTML = (pp.data||[]).map(p => `<option value="${p.id}">${p.sku} — ${p.nome||''}</option>`).join('');
+    }
+    async function carregarCompras() {
+      const { data, error } = await supabase.from('compras_view').select('*').order('data_compra', { ascending:false }).limit(300);
+      if (error) { console.error(error); return; }
+      const tbody = document.getElementById('tabelaCompras');
+      tbody.innerHTML = '';
+      (data||[]).forEach(r=>{
+        tbody.innerHTML += `
+          <tr>
+            <td class="p-2">${fmtDate(r.data_compra)}</td>
+            <td class="p-2">${r.fornecedor_nome||''}</td>
+            <td class="p-2">${r.produto_sku||''}</td>
+            <td class="p-2 text-right">${r.quantidade||0}</td>
+            <td class="p-2 text-right">${brl(r.custo_unit||0)}</td>
+            <td class="p-2">${r.obs||''}</td>
+            <td class="p-2">
+              <button class="btn btn-danger" onclick="excluirCompra('${r.compra_id}')">Excluir</button>
+            </td>
+          </tr>`;
+      });
+    }
+    async function excluirCompra(id){
+      if (!confirm('Excluir esta compra? Isso reverte o estoque.')) return;
+      const { error } = await supabase.from('compras').delete().eq('id', id);
+      if (error) return alert('Erro: '+error.message);
+      carregarCompras(); carregarProdutos(); carregarDashboard();
+    }
+    document.getElementById('formCompra').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const payload = {
+        fornecedor_id: document.getElementById('compraFornecedor').value,
+        produto_id: document.getElementById('compraProduto').value,
+        quantidade: parseInt(document.getElementById('compraQuantidade').value||0),
+        custo_unit: parseFloat(document.getElementById('compraCusto').value||0),
+        obs: document.getElementById('compraObs').value.trim()
+      };
+      if (!payload.fornecedor_id || !payload.produto_id || payload.quantidade<=0) return alert('Dados da compra inválidos');
+      // usa RPC para manter movimentos/estoque
+      const { data, error } = await supabase.rpc('registrar_compra', {
+        p_fornecedor_id: payload.fornecedor_id,
+        p_produto_id: payload.produto_id,
+        p_quantidade: payload.quantidade,
+        p_custo: payload.custo_unit,
+        p_obs: payload.obs
+      });
+      if (error) return alert('Erro: '+error.message);
+      resetForm('formCompra');
+      carregarCompras(); carregarProdutos(); carregarDashboard();
+    });
+
+    // ====== Vendas (RPC + exclusão) ======
+    async function preencherSelectsVenda(){
+      const { data } = await supabase.from('produtos').select('id,sku,nome,quantidade').order('sku');
+      const sel = document.getElementById('vendaProduto');
+      sel.innerHTML = (data||[]).map(p => `<option value="${p.id}">${p.sku} — ${p.nome||''} (Estoque: ${p.quantidade||0})</option>`).join('');
+    }
+    async function carregarVendas(){
+      const q = (document.getElementById('buscaVendas')?.value || '').trim();
+      let query = supabase.from('vendas_view').select('*').order('data', { ascending:false }).limit(500);
+      if (q) query = query.or(`produto_sku.ilike.%${q}%,descricao.ilike.%${q}%`);
+      const { data, error } = await query;
+      if (error) { console.error(error); return; }
+      const tbody = document.getElementById('tabelaVendas');
+      tbody.innerHTML = '';
+      (data||[]).forEach(r=>{
+        tbody.innerHTML += `
+          <tr>
+            <td class="p-2">${fmtDate(r.data)}</td>
+            <td class="p-2">${r.produto_sku||''}</td>
+            <td class="p-2 text-right">${r.quantidade||0}</td>
+            <td class="p-2 text-right">${brl(r.preco_unit||0)}</td>
+            <td class="p-2">${r.descricao||''}</td>
+            <td class="p-2">
+              <button class="btn btn-danger" onclick="excluirVenda('${r.venda_id}')">Excluir</button>
+            </td>
+          </tr>`;
+      });
+    }
+    async function excluirVenda(id){
+      if (!confirm('Excluir esta venda? Isso repõe o estoque.')) return;
+      const { error } = await supabase.from('vendas').delete().eq('id', id);
+      if (error) return alert('Erro: '+error.message);
+      carregarVendas(); carregarProdutos(); carregarDashboard();
+    }
+    document.getElementById('formVenda').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const payload = {
+        produto_id: document.getElementById('vendaProduto').value,
+        quantidade: parseInt(document.getElementById('vendaQuantidade').value||0),
+        preco: parseFloat(document.getElementById('vendaPreco').value||0),
+        descricao: document.getElementById('vendaDescricao').value.trim()
+      };
+      if (!payload.produto_id || payload.quantidade<=0) return alert('Dados da venda inválidos');
+      const { error } = await supabase.rpc('registrar_venda', {
+        p_produto_id: payload.produto_id,
+        p_quantidade: payload.quantidade,
+        p_preco: payload.preco,
+        p_descricao: payload.descricao
+      });
+      if (error) return alert('Erro: '+error.message);
+      resetForm('formVenda');
+      carregarVendas(); carregarProdutos(); carregarDashboard();
+    });
+
+    // ====== Financeiro (CRUD simples) ======
     async function carregarFinanceiro() {
-      const { data } = await supabase.from("financeiro").select("*").order("data", { ascending: false });
-      const tabela = document.getElementById("tabelaFinanceiro");
-      tabela.innerHTML = "<tr class='bg-gray-200'><th>Tipo</th><th>Descrição</th><th>Valor</th><th>Data</th></tr>";
-      data?.forEach(f => {
-        tabela.innerHTML += `<tr>
-          <td>${f.tipo}</td><td>${f.descricao}</td><td>R$ ${f.valor}</td><td>${new Date(f.data).toLocaleString()}</td>
-        </tr>`;
+      const { data, error } = await supabase.from('financeiro').select('*').order('data',{ascending:false}).limit(500);
+      if (error) { console.error(error); return; }
+      const tbody = document.getElementById('tabelaFinanceiro');
+      tbody.innerHTML = '';
+      (data||[]).forEach(r=>{
+        tbody.innerHTML += `
+          <tr>
+            <td class="p-2">${r.data ? new Date(r.data).toLocaleDateString('pt-BR') : ''}</td>
+            <td class="p-2">${r.tipo}</td>
+            <td class="p-2">${r.descricao||''}</td>
+            <td class="p-2 text-right">${brl(r.valor||0)}</td>
+            <td class="p-2">
+              <button class="btn btn-danger" onclick="excluirFinanceiro('${r.id}')">Excluir</button>
+            </td>
+          </tr>`;
       });
     }
-    document.getElementById("formFinanceiro").onsubmit = async (e) => {
+    async function excluirFinanceiro(id){
+      if (!confirm('Excluir lançamento financeiro?')) return;
+      const { error } = await supabase.from('financeiro').delete().eq('id', id);
+      if (error) return alert('Erro: '+error.message);
+      carregarFinanceiro(); carregarDashboard();
+    }
+    document.getElementById('formFinanceiro').addEventListener('submit', async (e)=>{
       e.preventDefault();
-      await supabase.from("financeiro").insert([{ tipo: tipoLancamento.value, descricao: descricaoLancamento.value, valor: parseFloat(valorLancamento.value) }]);
-      e.target.reset(); carregarFinanceiro();
-    };
+      const id = document.getElementById('financeiroId').value;
+      const payload = {
+        tipo: document.getElementById('finTipo').value,
+        descricao: document.getElementById('finDescricao').value.trim(),
+        valor: parseFloat(document.getElementById('finValor').value||0),
+        data: document.getElementById('finData').value || new Date().toISOString()
+      };
+      let res;
+      if (id) res = await supabase.from('financeiro').update(payload).eq('id', id).select().single();
+      else    res = await supabase.from('financeiro').insert([payload]).select().single();
+      if (res.error) return alert('Erro: '+res.error.message);
+      resetForm('formFinanceiro');
+      carregarFinanceiro(); carregarDashboard();
+    });
 
-    // ======================================================
-    // UPLOAD PLANILHA
+    // ====== Upload UPSELLER (duplicidade + cadastro + baixa + erros + histórico) ======
+    document.getElementById('fileUpload').addEventListener('change', (e)=>{
+      const f = e.target.files[0];
+      document.getElementById('nomeArquivoInfo').textContent = f ? `Selecionado: ${f.name}` : '';
+    });
+
     async function processarPlanilha() {
       const file = document.getElementById("fileUpload").files[0];
       if (!file) { alert("Selecione uma planilha!"); return; }
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
+
+      const fileName = file.name;
+      // Verifica duplicidade pelo nome do arquivo
+      const { data: existe } = await supabase.from("uploads").select("id").eq("nome_arquivo", fileName).maybeSingle();
+      if (existe) { alert(`⚠️ Esta planilha (${fileName}) já foi importada.`); return; }
+
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type:'array' });
+      // Aceita primeira planilha
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet);
+
       let sucessos = 0, falhas = 0;
+      const erros = [];
+
       for (const row of rows) {
-        const sku = row.SKU || row.sku || row["Código"];
-        const quantidade = row.Quantidade || row.qtd || row["Qtd. do Produto"];
-        const preco = row.Preco || row["Preço Unitário"] || 0;
-        if (sku && quantidade) {
-          try {
-            const { data: produto } = await supabase.from("produtos").select("id").eq("sku", sku).single();
-            if (!produto) throw new Error("Produto não encontrado");
-            await supabase.rpc("registrar_venda", { p_produto_id: produto.id, p_quantidade: parseInt(quantidade), p_preco: parseFloat(preco), p_descricao: "Venda UPSELLER" });
-            sucessos++;
-          } catch (err) {
-            console.error("Falha:", row, err); falhas++;
+        const sku = row["SKU"] || row["sku"];
+        const quantidade = parseInt(row["Qtd. do Produto"] ?? row["Quantidade"] ?? row["qtd"] ?? 0);
+        const nome = row["Nome do Produto"] || null;
+        const preco = parseFloat(row["Preço de Produto"] ?? 0);
+        const custo = parseFloat(row["Custo do Produto"] ?? row["Custo Médio"] ?? 0);
+        const variacao = row["Variação"] || row["Categoria"] || "Importado";
+
+        if (!sku || !quantidade || quantidade<=0) {
+          falhas++; erros.push(`Linha sem SKU/Qtd válida: ${JSON.stringify(row)}`); continue;
+        }
+
+        try {
+          // upsert produto por SKU (cliente)
+          const { data: existente, error: e1 } = await supabase.from("produtos").select("id").eq("sku", sku).maybeSingle();
+          if (e1) throw e1;
+          let produtoId;
+          if (!existente) {
+            const { data: novo, error: e2 } = await supabase.from("produtos").insert([{
+              sku, nome: nome || sku, modelo: variacao, categoria: variacao,
+              preco_fornecedor: isNaN(custo)?0:custo, preco_venda: isNaN(preco)?0:preco, quantidade: 0
+            }]).select('id').single();
+            if (e2) throw e2;
+            produtoId = novo.id;
+          } else {
+            produtoId = existente.id;
           }
-        } else { falhas++; }
+
+          // registra venda (baixa estoque)
+          const { error: e3 } = await supabase.rpc("registrar_venda", {
+            p_produto_id: produtoId,
+            p_quantidade: quantidade,
+            p_preco: isNaN(preco)?0:preco,
+            p_descricao: "Venda UPSELLER"
+          });
+          if (e3) throw e3;
+
+          sucessos++;
+        } catch(err) {
+          falhas++;
+          erros.push(`SKU ${sku}: ${err.message||err}`);
+        }
       }
-      document.getElementById("resultadoUpload").innerHTML = `<p class="text-green-600">Sucessos: ${sucessos}</p><p class="text-red-600">Falhas: ${falhas}</p>`;
-      carregarDashboard();
+
+      // grava upload
+      await supabase.from("uploads").insert([{ nome_arquivo: fileName, sucesso: sucessos, falhas }]);
+
+      // Saída visual
+      document.getElementById("resultadoUpload").innerHTML = `
+        <p class="text-green-700">✅ Sucessos: <b>${sucessos}</b></p>
+        <p class="text-red-700">❌ Falhas: <b>${falhas}</b></p>
+      `;
+      document.getElementById("errosDetalhados").textContent = erros.join("\n");
+
+      carregarUploads(); carregarVendas(); carregarProdutos(); carregarDashboard();
     }
+
+    // Histórico uploads (tela)
+    async function carregarUploads() {
+      const { data, error } = await supabase.from("uploads").select("*").order("data_upload", { ascending:false }).limit(200);
+      if (error) { console.error(error); return; }
+      const tbody = document.getElementById("tabelaUploads");
+      tbody.innerHTML = "";
+      (data||[]).forEach(u=>{
+        tbody.innerHTML += `
+          <tr>
+            <td class="p-2">${u.nome_arquivo}</td>
+            <td class="p-2 text-center">${fmtDate(u.data_upload)}</td>
+            <td class="p-2 text-center text-green-700">${u.sucesso||0}</td>
+            <td class="p-2 text-center text-red-700">${u.falhas||0}</td>
+          </tr>`;
+      });
+    }
+
   </script>
 </body>
 </html>
