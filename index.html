@@ -2,41 +2,98 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Teste Conexão Supabase</title>
+  <title>DROP ERP - Ultra (com diagnóstico)</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin:0; background:#f5f6f7; }
+    .sidebar { width:220px; background:#111827; color:white; height:100vh; position:fixed; top:0; left:0; padding:20px; }
+    .sidebar h2 { margin:0 0 20px; }
+    .sidebar button { display:block; width:100%; margin:5px 0; padding:10px; background:#1f2937; color:white; border:none; cursor:pointer; }
+    .content { margin-left:240px; padding:20px; }
+    .card { background:white; padding:20px; border-radius:8px; margin-bottom:20px; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
+    .status-ok { color:green; }
+    .status-err { color:red; }
+  </style>
 </head>
 <body>
-  <h1>🔗 Teste de Conexão com Supabase</h1>
-  <p id="status">Conectando...</p>
+  <div class="sidebar">
+    <h2>DROP ERP</h2>
+    <button onclick="mostrarSecao('dashboard')">📊 Dashboard</button>
+    <hr>
+    <div id="status">Status: ⏳ Conectando...</div>
+  </div>
 
-  <!-- SDK Supabase -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <div class="content">
+    <section id="dashboard" class="card">
+      <h2>Dashboard</h2>
+      <div id="diag"></div>
+      <canvas id="chartVendas" height="100"></canvas>
+    </section>
+  </div>
 
-  <script>
-    // ====== CONFIG: Supabase ======
-    const SUPABASE_URL = "https://ifkounurhfzwypnkywzz.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlma291bnVyaGZ6d3lwbmt5d3p6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2MjczMDQsImV4cCI6MjA3MTIwMzMwNH0.0yHrecXrnPByyP2gFFvRI76r918Q4VQZxuHq7xz_neI";
+<script>
+  // ===== CONFIG SUPABASE =====
+  const SUPABASE_URL = "https://ifkounurhfzwypnkywzz.supabase.co";
+  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlma291bnVyaGZ6d3lwbmt5d3p6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2MjczMDQsImV4cCI6MjA3MTIwMzMwNH0.0yHrecXrnPByyP2gFFvRI76r918Q4VQZxuHq7xz_neI";
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  async function diagnostico() {
+    const diagDiv = document.getElementById("diag");
+    diagDiv.innerHTML = "<p>🔎 Rodando diagnóstico...</p>";
 
-    async function testarConexao() {
+    const tabelas = ["produtos","fornecedores","compras","vendas","financeiro","uploads"];
+    let html = "<ul>";
+
+    for (const t of tabelas) {
       try {
-        // Faz uma query simples para verificar
-        const { data, error } = await supabase.from("produtos").select("id").limit(1);
-        if (error) {
-          document.getElementById("status").innerText = "❌ Erro: " + error.message;
-          console.error(error);
-        } else {
-          document.getElementById("status").innerText = "✅ Conexão estabelecida! Produtos encontrados: " + data.length;
-          console.log("Dados:", data);
-        }
+        const { data, error } = await supabase.from(t).select("*").limit(1);
+        if (error) throw error;
+        html += `<li class="status-ok">✅ ${t} OK (${data.length} registros)</li>`;
       } catch (err) {
-        document.getElementById("status").innerText = "❌ Falha inesperada: " + err.message;
-        console.error(err);
+        html += `<li class="status-err">❌ ${t} erro: ${err.message}</li>`;
       }
     }
+    html += "</ul>";
+    diagDiv.innerHTML = html;
+  }
 
-    // Chama no load
-    testarConexao();
-  </script>
+  async function carregarDashboard() {
+    const { data, error } = await supabase.from("vendas").select("data_venda, quantidade").order("data_venda", { ascending: true }).limit(14);
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    const labels = data.map(v => v.data_venda);
+    const valores = data.map(v => v.quantidade);
+
+    new Chart(document.getElementById("chartVendas"), {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{ label:"Vendas (últimos 14 dias)", data: valores, borderColor:"blue", fill:false }]
+      }
+    });
+  }
+
+  // Inicialização
+  (async ()=>{
+    try {
+      const { data, error } = await supabase.from("produtos").select("id").limit(1);
+      if (error) throw error;
+      document.getElementById("status").innerHTML = "✅ Conexão estabelecida!";
+      await diagnostico();
+      await carregarDashboard();
+    } catch(err) {
+      document.getElementById("status").innerHTML = "❌ Erro: " + err.message;
+    }
+  })();
+
+  function mostrarSecao(sec) {
+    document.querySelectorAll(".content section").forEach(s=>s.style.display="none");
+    document.getElementById(sec).style.display="block";
+  }
+</script>
 </body>
 </html>
