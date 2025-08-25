@@ -419,8 +419,10 @@
 
   <script>
     // ====== CONFIG: Supabase ======
-    const SUPABASE_URL = "https://SUA-URL.supabase.co"; // <-- troque
-    const SUPABASE_KEY = "SUA_CHAVE_ANON";              // <-- troque
+    const SUPABASE_URL = "https://ifkounurhfzwypnkywzz.supabase.co"; // <-- troque
+    const SUPABASE_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlma291bnVyaGZ6d3lwbmt5d3p6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2MjczMDQsImV4cCI6MjA3MTIwMzMwNH0.0yHrecXrnPByyP2gFFvRI76r918Q4VQZxuHq7xz_neI";
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+;              // <-- troque
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // ====== Navegação ======
